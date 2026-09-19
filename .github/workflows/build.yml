@@ -34,8 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-            libstdc++-12-dev patchelf rpm
-          sudo apt-get install -y libmpv2 || sudo apt-get install -y libmpv1
+            libstdc++-12-dev patchelf rpm libasound2-dev libmpv-dev
       - run: flutter pub get
       - run: flutter build linux --release
       - name: Package every Linux format
