@@ -20,6 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   final _gridFocus = FocusNode();
+  bool _searchOpen = false;
 
   @override
   void initState() {
@@ -46,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
       listenable: appState,
       builder: (context, _) {
         final a = appState.account;
+        final narrow = MediaQuery.sizeOf(context).width < 720;
         return CallbackShortcuts(
           bindings: {
             const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
@@ -61,52 +63,25 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text('Xtream Player'),
                 const SizedBox(width: 16),
-                if (a != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.card,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppTheme.border),
-                    ),
-                    child: Text(
-                      '${a.username} · ${a.expired ? "EXPIRED" : "expires ${a.expiryLabel}"} · '
-                      '${a.activeConnections}/${a.maxConnections} conn',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: a.expired ? AppTheme.danger : AppTheme.ok,
-                      ),
-                    ),
-                  ),
+                if (!narrow && a != null) _AccountChip(account: a),
                 const Spacer(),
               ],
             ),
             actions: [
-              SizedBox(
-                width: 250,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _searchFocus,
-                    onChanged: appState.setSearch,
-                    decoration: InputDecoration(
-                      hintText: 'Search…',
-                      prefixIcon: const Icon(Icons.search, size: 16, color: AppTheme.muted),
-                      suffixIcon: appState.search.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.close, size: 15),
-                              onPressed: () {
-                                _searchController.clear();
-                                appState.setSearch('');
-                              },
-                            ),
-                    ),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-              ),
+              if (narrow)
+                IconButton(
+                  tooltip: 'Search',
+                  icon: Icon(appState.search.isEmpty ? Icons.search : Icons.search_off),
+                  onPressed: () {
+                    setState(() => _searchOpen = !_searchOpen);
+                    if (_searchOpen) _searchFocus.requestFocus();
+                  },
+                )
+              else
+                SizedBox(width: 250, child: _SearchField(
+                  controller: _searchController,
+                  focusNode: _searchFocus,
+                )),
               IconButton(
                 tooltip: 'Reload',
                 icon: const Icon(Icons.refresh),
@@ -122,16 +97,34 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           body: Column(
             children: [
+              if (narrow && a != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: Align(alignment: Alignment.centerLeft, child: _AccountChip(account: a)),
+                ),
+              if (narrow && _searchOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: _SearchField(controller: _searchController, focusNode: _searchFocus),
+                ),
               _TabBar(),
               Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _CategoryRail(),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: _ContentArea(gridFocus: _gridFocus)),
-                  ],
-                ),
+                child: narrow
+                    ? Column(
+                        children: [
+                          _CategoryChips(),
+                          const Divider(height: 1),
+                          Expanded(child: _ContentArea(gridFocus: _gridFocus)),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _CategoryRail(),
+                          const VerticalDivider(width: 1),
+                          Expanded(child: _ContentArea(gridFocus: _gridFocus)),
+                        ],
+                      ),
               ),
               const Divider(height: 1),
               Padding(
@@ -161,6 +154,139 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _AccountChip extends StatelessWidget {
+  const _AccountChip({required this.account});
+
+  final AccountInfo account;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Text(
+        '${account.username} · ${account.expired ? "EXPIRED" : "expires ${account.expiryLabel}"} · '
+        '${account.activeConnections}/${account.maxConnections} conn',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11,
+          color: account.expired ? AppTheme.danger : AppTheme.ok,
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.focusNode});
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        onChanged: appState.setSearch,
+        decoration: InputDecoration(
+          hintText: 'Search…',
+          prefixIcon: const Icon(Icons.search, size: 16, color: AppTheme.muted),
+          suffixIcon: appState.search.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 15),
+                  onPressed: () {
+                    controller.clear();
+                    appState.setSearch('');
+                  },
+                ),
+        ),
+        style: const TextStyle(fontSize: 13),
+      ),
+    );
+  }
+}
+
+/// Horizontal category strip used on narrow (phone / portrait) layouts.
+class _CategoryChips extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cats = appState.categories;
+    return SizedBox(
+      height: 46,
+      child: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          children: [
+            FocusTraversalOrder(
+              order: const NumericFocusOrder(0),
+              child: _CategoryChip(
+                label: 'All',
+                selected: appState.selectedCategoryId == null,
+                onSelect: () => appState.selectCategory(null),
+              ),
+            ),
+            for (var i = 0; i < cats.length; i++)
+              FocusTraversalOrder(
+                order: NumericFocusOrder(i + 1),
+                child: _CategoryChip(
+                  label: cats[i].name,
+                  selected: appState.selectedCategoryId == cats[i].id,
+                  onSelect: () => appState.selectCategory(cats[i].id),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.label, required this.selected, required this.onSelect});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FocusRing(
+        borderRadius: 14,
+        onSelect: onSelect,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.accent.withValues(alpha: 0.16) : AppTheme.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? AppTheme.accent : AppTheme.border),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: selected ? AppTheme.accent : AppTheme.text,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

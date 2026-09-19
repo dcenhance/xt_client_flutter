@@ -30,8 +30,8 @@ class XtreamException implements Exception {
         return 'The host did not answer at all. Usual causes: wrong hostname/port, '
             'DNS pointing somewhere dead, firewall, or the panel not listening on that port.';
       case XtreamErrorKind.wrongServer:
-        return 'Something answered, but not an Xtream panel (no JSON). '
-            'Check that the address ends with the panel port, e.g. http://host:8080.';
+        return 'Either the address is not a valid URL (expected http://host:8080) or something '
+            'answered that is not an Xtream panel (no JSON).';
       case XtreamErrorKind.http:
         return 'The panel answered with HTTP $statusCode but not with playlist JSON. '
             'Many panels use 401/403/511/512 for "not allowed from this IP" or "bad credentials".';
@@ -72,12 +72,30 @@ class XtreamClient {
   }
 
   Uri _api([Map<String, String> extra = const {}]) {
+    _ensureValidServer();
     final params = <String, String>{
       'username': username,
       'password': password,
       ...extra,
     };
     return Uri.parse('$server/player_api.php').replace(queryParameters: params);
+  }
+
+  /// Rejects malformed addresses with a readable message instead of letting
+  /// `Uri.parse` throw a raw FormatException into the UI.
+  void _ensureValidServer() {
+    try {
+      final uri = Uri.parse(server);
+      if (uri.host.isEmpty) {
+        throw const FormatException('no host name');
+      }
+      uri.port; // forces port validation
+    } on FormatException catch (e) {
+      throw XtreamException(
+        XtreamErrorKind.wrongServer,
+        'The server address "$server" is not a valid URL (${e.message}).',
+      );
+    }
   }
 
   Future<dynamic> _getJson(Uri uri) async {

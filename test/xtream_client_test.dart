@@ -123,6 +123,21 @@ void main() {
     );
   });
 
+  test('malformed server address is reported, not thrown raw', () async {
+    // e.g. a typo that swallows the port: "http://10.0.2.2:8420demo"
+    final client = XtreamClient(
+      server: 'http://10.0.2.2:8420demodemo',
+      username: 'x',
+      password: 'y',
+    );
+    await expectLater(
+      client.login(),
+      throwsA(isA<XtreamException>()
+          .having((e) => e.kind, 'kind', XtreamErrorKind.wrongServer)
+          .having((e) => e.message, 'message', contains('not a valid URL'))),
+    );
+  });
+
   test('stream URL shapes follow the Xtream specification', () {
     final client = XtreamClient(
       server: 'http://panel:8080',

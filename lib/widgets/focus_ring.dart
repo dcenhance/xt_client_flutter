@@ -130,6 +130,12 @@ class AppShortcuts extends StatelessWidget {
         SingleActivator(LogicalKeyboardKey.escape): _PopIntent(),
         SingleActivator(LogicalKeyboardKey.goBack): _PopIntent(),
         SingleActivator(LogicalKeyboardKey.browserBack): _PopIntent(),
+        // TV / Fire TV remotes: the OK button arrives as "select" (DPAD_CENTER)
+        // or as a gamepad A button. Flutter's defaults do not map those to
+        // ActivateIntent, so focusable widgets would ignore the OK button.
+        SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.gameButtonB): _PopIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
