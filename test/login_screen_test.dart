@@ -3,26 +3,33 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xtream_player/screens/login_screen.dart';
 
 void main() {
-  testWidgets('login asks for credentials only — the panel comes later',
-      (tester) async {
+  testWidgets('login is just the mark, name and credentials', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
 
-    // Username + password, nothing else. The server/panel is behind Options
-    // because the app looks the panel up itself after signing in.
+    expect(find.text('Orion Player'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
-    expect(find.text('Sign In'), findsOneWidget);
     expect(find.text('Remember me'), findsOneWidget);
-    expect(find.text('Server'), findsNothing);
+    expect(find.text('Sign In'), findsOneWidget);
+    // The technical extras stay off this screen.
+    expect(find.text('Server address'), findsNothing);
+    expect(find.text('Diagnose (DNS + ports)'), findsNothing);
+    expect(find.text('Test a list of servers'), findsNothing);
+  });
 
-    await tester.tap(find.text('Panel, server address, diagnostics'));
+  testWidgets('one Select panel button, defaulting to automatic', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+
+    expect(find.text('Select panel · Automatic'), findsOneWidget);
+
+    await tester.tap(find.text('Select panel · Automatic'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TextField), findsNWidgets(3));
-    expect(find.text('Server address (optional)'), findsOneWidget);
-    expect(find.text('Select panel'), findsOneWidget);
-    expect(find.text('Test a list of servers'), findsOneWidget);
+    // The dialog lists the panels the app can try by itself.
+    expect(find.text('EUROPE 1'), findsOneWidget);
+    expect(find.text('EUROPE 2'), findsOneWidget);
+    expect(find.text('TÜRKİYE PANEL 1'), findsOneWidget);
   });
 
   testWidgets('password field is obscured and can be revealed', (tester) async {

@@ -15,6 +15,10 @@ enum ViewMode { grid, list }
 
 enum Density { comfortable, compact }
 
+/// Whole-app layout, pickable in Settings. Not tied to the platform: a desktop
+/// can run the Dashboard shell and a phone the Sidebar one.
+enum LayoutStyle { classic, sidebar, showcase, dashboard }
+
 /// A login the app keeps between sessions, so the user does not have to retype
 /// it and a panel can be re-picked later without asking for credentials again.
 class SavedLogin {
@@ -71,6 +75,7 @@ class AppState extends ChangeNotifier {
   static const _kTheme = 'theme';
   static const _kLogins = 'logins';
   static const _kWorking = 'working_servers';
+  static const _kLayout = 'layout';
 
   SharedPreferences? _prefs;
 
@@ -80,7 +85,8 @@ class AppState extends ChangeNotifier {
   bool remember = true;
   ViewMode viewMode = ViewMode.grid;
   Density density = Density.comfortable;
-  String themeId = kAmberNoir.id;
+  String themeId = kGoldenOled.id;
+  LayoutStyle layout = LayoutStyle.classic;
 
   /// True when browsing a panel that answers without credentials.
   bool guest = false;
@@ -118,6 +124,12 @@ class AppState extends ChangeNotifier {
 
   bool get loggedIn => account != null || guest;
 
+  String get tabLabel => switch (tab) {
+        ContentTab.live => 'Live TV',
+        ContentTab.movies => 'Movies',
+        ContentTab.series => 'Series',
+      };
+
   SavedLogin? get activeLogin {
     for (final l in logins) {
       if (l.server == server && l.username == username) return l;
@@ -144,7 +156,11 @@ class AppState extends ChangeNotifier {
     density = (_prefs!.getString(_kDensity) ?? 'comfortable') == 'compact'
         ? Density.compact
         : Density.comfortable;
-    themeId = _prefs!.getString(_kTheme) ?? kAmberNoir.id;
+    themeId = _prefs!.getString(_kTheme) ?? kGoldenOled.id;
+    layout = LayoutStyle.values.firstWhere(
+      (l) => l.name == (_prefs!.getString(_kLayout) ?? 'classic'),
+      orElse: () => LayoutStyle.classic,
+    );
     AppTheme.use(themeId);
     workingServers = _prefs!.getStringList(_kWorking) ?? const [];
     _loadLogins();
@@ -203,6 +219,13 @@ class AppState extends ChangeNotifier {
   Future<void> setDensity(Density value) async {
     density = value;
     await _prefs?.setString(_kDensity, value == Density.compact ? 'compact' : 'comfortable');
+    notifyListeners();
+  }
+
+  /// Switch the whole app to another shell layout and remember it.
+  Future<void> setLayout(LayoutStyle value) async {
+    layout = value;
+    await _prefs?.setString(_kLayout, value.name);
     notifyListeners();
   }
 

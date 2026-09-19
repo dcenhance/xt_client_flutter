@@ -11,6 +11,17 @@ import '../widgets/focus_ring.dart';
 import 'player_screen.dart';
 import 'settings_sheet.dart';
 
+/// Opens an item: series go to the season sheet, everything else to the player.
+void _openItem(BuildContext context, StreamItem item) {
+  if (item.kind == 'series') {
+    showSeriesSheet(context, item);
+    return;
+  }
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => PlayerScreen(item: item),
+  ));
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -58,6 +69,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Bottom-navigation shell used on Android and iOS.
+  void _open(BuildContext context, StreamItem item) => _openItem(context, item);
+
   void _selectMobileTab(int index) {
     setState(() => _mobileIndex = index);
     if (index < _mobileTabsToContent.length) {
@@ -166,6 +179,39 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final a = appState.account;
         final narrow = MediaQuery.sizeOf(context).width < 720;
+        // Alternative shells, pickable in Settings and available on every
+        // platform — the classic one keeps its per-platform split below.
+        switch (appState.layout) {
+          case LayoutStyle.sidebar:
+            return _SidebarShell(
+              account: a,
+              narrow: narrow,
+              onOpen: _open,
+              searchController: _searchController,
+              searchFocus: _searchFocus,
+              gridFocus: _gridFocus,
+            );
+          case LayoutStyle.showcase:
+            return _ShowcaseShell(
+              account: a,
+              narrow: narrow,
+              onOpen: _open,
+              searchController: _searchController,
+              searchFocus: _searchFocus,
+              gridFocus: _gridFocus,
+            );
+          case LayoutStyle.dashboard:
+            return _DashboardShell(
+              account: a,
+              narrow: narrow,
+              onOpen: _open,
+              searchController: _searchController,
+              searchFocus: _searchFocus,
+              gridFocus: _gridFocus,
+            );
+          case LayoutStyle.classic:
+            break;
+        }
         // Phones and tablets get a bottom navigation shell; desktops keep the
         // tab strip + category rail.
         if (Platform.isAndroid || Platform.isIOS) {
@@ -652,15 +698,7 @@ class _ContentArea extends StatelessWidget {
     );
   }
 
-  void _open(BuildContext context, StreamItem item) {
-    if (item.kind == 'series') {
-      showSeriesSheet(context, item);
-      return;
-    }
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => PlayerScreen(item: item),
-    ));
-  }
+  void _open(BuildContext context, StreamItem item) => _openItem(context, item);
 }
 
 class _GuestChip extends StatelessWidget {
@@ -1156,6 +1194,786 @@ class _SeriesSheetState extends State<_SeriesSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+// ---------------------------------------------------------------------------
+// Alternative shells. All of them live on appState and the widgets above, and
+// none of them care which platform they run on.
+// ---------------------------------------------------------------------------
+
+/// Shared top-of-content toolbar: search, view mode, density, reload.
+class _ContentToolbar extends StatelessWidget {
+  const _ContentToolbar({required this.controller, required this.focusNode});
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 12, 6),
+      child: Row(
+        children: [
+          Expanded(child: _SearchField(controller: controller, focusNode: focusNode)),
+          const SizedBox(width: 6),
+          IconButton(
+            tooltip: appState.viewMode == ViewMode.grid ? 'List view' : 'Grid view',
+            icon: Icon(appState.viewMode == ViewMode.grid
+                ? Icons.view_list_outlined
+                : Icons.grid_view_outlined),
+            onPressed: () => appState.setViewMode(
+                appState.viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid),
+          ),
+          IconButton(
+            tooltip: appState.density == Density.compact ? 'Comfortable' : 'Compact',
+            icon: Icon(appState.density == Density.compact
+                ? Icons.density_medium
+                : Icons.density_small),
+            onPressed: () => appState.setDensity(appState.density == Density.compact
+                ? Density.comfortable
+                : Density.compact),
+          ),
+          IconButton(
+            tooltip: 'Reload',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => appState.loadContent(appState.tab, refresh: true),
+          ),
+          IconButton(
+            tooltip: 'Account & settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => showSettingsSheet(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Layout: Sidebar — permanent vertical navigation, on every platform.
+class _SidebarShell extends StatelessWidget {
+  const _SidebarShell({
+    required this.account,
+    required this.narrow,
+    required this.onOpen,
+    required this.searchController,
+    required this.searchFocus,
+    required this.gridFocus,
+  });
+
+  final AccountInfo? account;
+  final bool narrow;
+  final void Function(BuildContext, StreamItem) onOpen;
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final FocusNode gridFocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    // Icon-only rail below ~820 px: a full rail plus a toolbar does not fit.
+    final compact = w < 820;
+    final width = compact ? 72.0 : 236.0;
+    const items = <(String, IconData, ContentTab)>[
+      ('Live TV', Icons.live_tv_outlined, ContentTab.live),
+      ('Movies', Icons.movie_outlined, ContentTab.movies),
+      ('Series', Icons.video_library_outlined, ContentTab.series),
+    ];
+    return Scaffold(
+      body: Row(
+        children: [
+          Container(
+            width: width,
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              border: Border(right: BorderSide(color: AppTheme.border)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(compact ? 16 : 18, 20, 16, 18),
+                  child: compact
+                      ? Image.asset('assets/orion-mark.png', width: 34, height: 34)
+                      : Row(
+                          children: [
+                            Image.asset('assets/orion-mark.png', width: 30, height: 30),
+                            const SizedBox(width: 10),
+                            Text('Orion Player',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.text,
+                                    letterSpacing: 0.2)),
+                          ],
+                        ),
+                ),
+                for (final (label, icon, tab) in items)
+                  _SidebarItem(
+                    label: label,
+                    icon: icon,
+                    compact: compact,
+                    selected: appState.tab == tab,
+                    badge: tab == appState.tab && appState.items.isNotEmpty
+                        ? '${appState.items.length}'
+                        : null,
+                    onTap: () => appState.setTab(tab),
+                  ),
+                _SidebarItem(
+                  label: 'Account',
+                  icon: Icons.person_outline,
+                  compact: compact,
+                  selected: false,
+                  onTap: () => showSettingsSheet(context),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(compact ? 10 : 14, 0, compact ? 10 : 14, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (account != null && !compact) _AccountChip(account: account!),
+                      if (appState.guest) const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: _GuestChip(),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                _ContentToolbar(controller: searchController, focusNode: searchFocus),
+                _CategoryChips(),
+                const Divider(height: 1),
+                Expanded(child: _ContentArea(gridFocus: gridFocus)),
+                if (appState.busy) const LinearProgressIndicator(minHeight: 2),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  const _SidebarItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.compact,
+    required this.onTap,
+    this.badge,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final bool compact;
+  final VoidCallback onTap;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: FocusRing(
+        borderRadius: 12,
+        onSelect: onTap,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: selected ? AppTheme.accent.withValues(alpha: 0.16) : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: selected ? AppTheme.accent.withValues(alpha: 0.5) : Colors.transparent),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: selected ? AppTheme.accent : AppTheme.muted),
+                if (!compact) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(label,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: selected ? AppTheme.accent : AppTheme.text,
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        )),
+                  ),
+                  if (badge != null)
+                    Text(badge!, style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Layout: Showcase — hero banner plus one poster rail per category.
+class _ShowcaseShell extends StatelessWidget {
+  const _ShowcaseShell({
+    required this.account,
+    required this.narrow,
+    required this.onOpen,
+    required this.searchController,
+    required this.searchFocus,
+    required this.gridFocus,
+  });
+
+  final AccountInfo? account;
+  final bool narrow;
+  final void Function(BuildContext, StreamItem) onOpen;
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final FocusNode gridFocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = appState.items;
+    final hero = items.isNotEmpty ? items.first : null;
+    final w = MediaQuery.sizeOf(context).width;
+    final showWordmark = w >= 1040;
+    final showSearchField = w >= 900;
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 12, 4),
+              child: Row(
+                children: [
+                  Image.asset('assets/orion-mark.png', width: 28, height: 28),
+                  const SizedBox(width: 10),
+                  if (showWordmark)
+                    Text('Orion Player',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text)),
+                  const SizedBox(width: 14),
+                  _NavPills(labels: w >= 950),
+                  const Spacer(),
+                  if (showSearchField) ...[
+                    SizedBox(
+                      width: 220,
+                      child: _SearchField(controller: searchController, focusNode: searchFocus),
+                    ),
+                    const SizedBox(width: 4),
+                  ] else
+                    IconButton(
+                      tooltip: 'Search',
+                      icon: const Icon(Icons.search),
+                      onPressed: () => FocusScope.of(context).requestFocus(searchFocus),
+                    ),
+                  IconButton(
+                    tooltip: 'Reload',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () => appState.loadContent(appState.tab, refresh: true),
+                  ),
+                  IconButton(
+                    tooltip: 'Account & settings',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => showSettingsSheet(context),
+                  ),
+                ],
+              ),
+            ),
+            if (hero != null && appState.error == null)
+              SizedBox(
+                height: narrow ? 210 : 250,
+                child: _HeroBanner(
+                  item: hero,
+                  onPlay: () => onOpen(context, hero),
+                  onBrowse: () => appState.selectCategory(null),
+                ),
+              ),
+            Expanded(child: _CategoryRails(onOpen: onOpen)),
+            if (appState.busy) const LinearProgressIndicator(minHeight: 2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Nav as pills instead of a tab strip.
+class _NavPills extends StatelessWidget {
+  const _NavPills({required this.labels});
+
+  final bool labels;
+
+  @override
+  Widget build(BuildContext context) {
+    const items = <(String, IconData, ContentTab)>[
+      ('Live', Icons.live_tv_outlined, ContentTab.live),
+      ('Movies', Icons.movie_outlined, ContentTab.movies),
+      ('Series', Icons.video_library_outlined, ContentTab.series),
+    ];
+    return Wrap(
+      spacing: 6,
+      children: [
+        for (final (label, icon, tab) in items)
+          FocusRing(
+            borderRadius: 20,
+            onSelect: () => appState.setTab(tab),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => appState.setTab(tab),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                decoration: BoxDecoration(
+                  color: appState.tab == tab
+                      ? AppTheme.accent.withValues(alpha: 0.18)
+                      : Colors.transparent,
+                  border: Border.all(
+                      color: appState.tab == tab ? AppTheme.accent : AppTheme.border),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon,
+                        size: 15,
+                        color: appState.tab == tab ? AppTheme.accent : AppTheme.muted),
+                    if (labels) ...[
+                      const SizedBox(width: 7),
+                      Text(label,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight:
+                                appState.tab == tab ? FontWeight.w700 : FontWeight.w500,
+                            color: appState.tab == tab ? AppTheme.accent : AppTheme.text,
+                          )),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HeroBanner extends StatelessWidget {
+  const _HeroBanner({required this.item, required this.onPlay, required this.onBrowse});
+
+  final StreamItem item;
+  final VoidCallback onPlay;
+  final VoidCallback onBrowse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: BoxDecoration(gradient: AppTheme.headerGradient()),
+            ),
+            // Channel logos are small and wide, posters are tall: contained on
+            // the right with a glow reads better than a blown-up crop.
+            if (item.icon != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: FractionallySizedBox(
+                  widthFactor: 0.52,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.accent.withValues(alpha: 0.16),
+                            blurRadius: 40,
+                            spreadRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: Image.network(
+                        item.icon!,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    AppTheme.background.withValues(alpha: 0.96),
+                    AppTheme.background.withValues(alpha: 0.72),
+                    AppTheme.background.withValues(alpha: 0.18),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, size: 13, color: AppTheme.accent),
+                      const SizedBox(width: 6),
+                      Text(
+                        appState.tab == ContentTab.live ? 'ON NOW' : 'FEATURED',
+                        style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 1.6,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.accent),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    item.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.text),
+                  ),
+                  if (item.genre != null && item.genre!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(item.genre!,
+                        maxLines: 1,
+                        style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      FilledButton.icon(
+                        onPressed: onPlay,
+                        icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                        label: const Text('Play'),
+                      ),
+                      const SizedBox(width: 10),
+                      OutlinedButton(
+                        onPressed: onBrowse,
+                        child: const Text('Browse all'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Below the hero: one horizontal rail per category, like a streaming shelf.
+class _CategoryRails extends StatelessWidget {
+  const _CategoryRails({required this.onOpen});
+
+  final void Function(BuildContext, StreamItem) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final cats = appState.categories;
+    final items = appState.items;
+    if (items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    // Group the loaded list by category so rails need no extra requests.
+    final rails = <(Category, List<StreamItem>)>[];
+    for (final c in cats) {
+      final inCat = items.where((i) => i.categoryId == c.id).toList();
+      if (inCat.length >= 4) rails.add((c, inCat.take(18).toList()));
+    }
+    if (rails.isEmpty) {
+      return _ContentArea(gridFocus: FocusNode());
+    }
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 14),
+      children: [
+        for (final (cat, list) in rails)
+          _FeaturedRow(
+            title: cat.name,
+            items: list,
+            onOpen: (item) => onOpen(context, item),
+          ),
+      ],
+    );
+  }
+}
+
+/// Layout: Dashboard — large tiles you step into, aimed at a TV remote.
+class _DashboardShell extends StatefulWidget {
+  const _DashboardShell({
+    required this.account,
+    required this.narrow,
+    required this.onOpen,
+    required this.searchController,
+    required this.searchFocus,
+    required this.gridFocus,
+  });
+
+  final AccountInfo? account;
+  final bool narrow;
+  final void Function(BuildContext, StreamItem) onOpen;
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final FocusNode gridFocus;
+
+  @override
+  State<_DashboardShell> createState() => _DashboardShellState();
+}
+
+class _DashboardShellState extends State<_DashboardShell> {
+  bool _entered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 12, 6),
+              child: Row(
+                children: [
+                  if (_entered)
+                    IconButton(
+                      tooltip: 'Back to sections',
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => setState(() => _entered = false),
+                    )
+                  else
+                    Image.asset('assets/orion-mark.png', width: 30, height: 30),
+                  const SizedBox(width: 10),
+                  if (!widget.narrow) ...[
+                    Text(_entered ? appState.tabLabel : 'Orion Player',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.text)),
+                    const SizedBox(width: 14),
+                  ],
+                  const Spacer(),
+                  SizedBox(
+                    width: widget.narrow ? 150 : 240,
+                    child: _SearchField(
+                        controller: widget.searchController, focusNode: widget.searchFocus),
+                  ),
+                  IconButton(
+                    tooltip: 'Account & settings',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => showSettingsSheet(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: !_entered
+                  ? _DashboardTiles(
+                      narrow: widget.narrow,
+                      account: widget.account,
+                      onEnter: (tab) {
+                        appState.setTab(tab);
+                        setState(() => _entered = true);
+                      },
+                    )
+                  : Column(
+                      children: [
+                        _CategoryChips(),
+                        const Divider(height: 1),
+                        Expanded(child: _ContentArea(gridFocus: widget.gridFocus)),
+                      ],
+                    ),
+            ),
+            if (appState.busy) const LinearProgressIndicator(minHeight: 2),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardTiles extends StatelessWidget {
+  const _DashboardTiles({
+    required this.narrow,
+    required this.account,
+    required this.onEnter,
+  });
+
+  final bool narrow;
+  final AccountInfo? account;
+  final void Function(ContentTab) onEnter;
+
+  @override
+  Widget build(BuildContext context) {
+    const tiles = <(String, IconData, ContentTab, String)>[
+      ('Live TV', Icons.live_tv_outlined, ContentTab.live, 'Channels, now and next'),
+      ('Movies', Icons.movie_outlined, ContentTab.movies, 'The on-demand library'),
+      ('Series', Icons.video_library_outlined, ContentTab.series, 'Seasons and episodes'),
+    ];
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+      children: [
+        if (appState.guest) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: Align(alignment: Alignment.centerLeft, child: _GuestChip()),
+          ),
+        ],
+        GridView.count(
+          crossAxisCount: narrow ? 1 : 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: narrow ? 2.4 : 1.15,
+          children: [
+            for (final (label, icon, tab, blurb) in tiles)
+              _SectionTile(
+                label: label,
+                icon: icon,
+                blurb: blurb,
+                onTap: () => onEnter(tab),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _AccountCard(account: account),
+      ],
+    );
+  }
+}
+
+class _SectionTile extends StatelessWidget {
+  const _SectionTile({
+    required this.label,
+    required this.icon,
+    required this.blurb,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final String blurb;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusRing(
+      borderRadius: 18,
+      onSelect: onTap,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppTheme.accent.withValues(alpha: 0.18),
+                AppTheme.card,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: AppTheme.accent, size: 22),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.text)),
+                  const SizedBox(height: 2),
+                  Text(blurb, style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountCard extends StatelessWidget {
+  const _AccountCard({required this.account});
+
+  final AccountInfo? account;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          Image.asset('assets/orion-mark.png', width: 34, height: 34),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(account?.username ?? appState.username,
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text)),
+                const SizedBox(height: 2),
+                Text(
+                  account == null
+                      ? appState.server
+                      : (account!.expired
+                          ? 'EXPIRED ${account!.expiryLabel}'
+                          : 'expires ${account!.expiryLabel} · '
+                              '${account!.activeConnections}/${account!.maxConnections} connections'),
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      color: account?.expired == true ? AppTheme.danger : AppTheme.muted),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => showSettingsSheet(context),
+            child: const Text('Manage'),
+          ),
+        ],
       ),
     );
   }

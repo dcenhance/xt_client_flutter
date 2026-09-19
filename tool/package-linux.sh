@@ -52,11 +52,11 @@ make_png() {
     cp "$src" "$dst"
   fi
 }
-make_png "$ROOT/tool/xtream-player.svg" "$OUT/$NAME.png"
+make_png "$ROOT/tool/orion-player.svg" "$OUT/$NAME.png"
 cat > "$OUT/$NAME.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Xtream Player
+Name=Orion Player
 Comment=IPTV client for Xtream-Codes panels
 Exec=$NAME
 Icon=$NAME

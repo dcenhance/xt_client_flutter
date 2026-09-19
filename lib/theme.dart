@@ -158,6 +158,7 @@ const kDaylight = AppPalette(
 );
 
 const kPalettes = <AppPalette>[
+  kGoldenOled,
   kAmberNoir,
   kMidnight,
   kGoldenOled,
@@ -169,12 +170,12 @@ const kPalettes = <AppPalette>[
 /// Live theme access. All the old `AppTheme.x` call sites keep working; they now
 /// read the active palette instead of constants.
 class AppTheme {
-  static AppPalette _active = kAmberNoir;
+  static AppPalette _active = kGoldenOled;
 
   static AppPalette get palette => _active;
 
   static void use(String id) {
-    _active = kPalettes.firstWhere((p) => p.id == id, orElse: () => kAmberNoir);
+    _active = kPalettes.firstWhere((p) => p.id == id, orElse: () => kGoldenOled);
   }
 
   static Color get accent => _active.accent;

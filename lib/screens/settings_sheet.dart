@@ -6,6 +6,8 @@ import '../panels.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/focus_ring.dart';
+import '../widgets/layout_picker.dart';
+import '../widgets/server_tools.dart';
 import '../widgets/theme_picker.dart';
 import '../xtream_client.dart';
 
@@ -68,6 +70,18 @@ class SettingsContent extends StatelessWidget {
                         if ((a.httpsPort ?? '').isNotEmpty) 'https ${a.httpsPort}',
                       ].join(' · ')),
                   ],
+
+                  // ---- layout ------------------------------------------------
+                  const SizedBox(height: 22),
+                  const Text('Layout',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Pick any shell on any platform — it changes the whole navigation.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+                  ),
+                  const SizedBox(height: 8),
+                  const LayoutPicker(),
 
                   // ---- theme -------------------------------------------------
                   const SizedBox(height: 22),
@@ -140,7 +154,19 @@ class SettingsContent extends StatelessWidget {
                     _urlTile(context, 'M3U playlist (hls)', appState.client!.playlistUrl(hls: true)),
                     _urlTile(context, 'EPG (XMLTV)', appState.client!.epgUrl()),
                   ],
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 22),
+                  const Text('Server tools',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Only needed when a login fails and the address itself is in doubt. '
+                    'Nothing here is sent anywhere except the servers you name.',
+                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+                  ),
+                  const SizedBox(height: 10),
+                  const ServerToolsSection(),
+
+                  const SizedBox(height: 22),
                   const Text('Keyboard / remote',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),

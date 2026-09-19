@@ -1,4 +1,4 @@
-# Xtream Player
+# Orion Player
 
 A cross-platform IPTV client for **Xtream-Codes** panels — Linux, Windows, Android and iOS —
 built so a subscription can be used *without* the phone app that normally locks it in.
@@ -10,7 +10,7 @@ so the three values your provider gives you (server, username, password) are all
 
 ```
 ┌───────────────┐   player_api.php?username=..&password=..   ┌──────────────────┐
-│ Xtream Player │ ─────────────────────────────────────────► │ your IPTV panel  │
+│ Orion Player  │ ─────────────────────────────────────────► │ your IPTV panel  │
 │  Linux/Win/   │ ◄─────── live / VOD / series / EPG ─────── │ (host:8080 …)    │
 │  Android      │   /live/u/p/<id>.ts · /movie/… · /series/…  └──────────────────┘
 └───────────────┘
@@ -47,15 +47,28 @@ so the three values your provider gives you (server, username, password) are all
 Both are fully D-pad / remote navigable — the mobile shell is what you get on Android TV and
 Fire TV too.
 
+### Layouts
+
+Four whole-app layouts ship in the app; **Account → Layout** switches between them live, on any
+platform (nothing is tied to the OS), and the choice is remembered:
+
+| Layout | What it is |
+|---|---|
+| **Classic** | tab strip + category rail on desktop, bottom navigation on phones |
+| **Sidebar** | permanent vertical navigation (icon-only rail on narrow windows) |
+| **Showcase** | big hero banner with Play, then one poster rail per category |
+| **Dashboard** | large section tiles you step into — the one to use with a TV remote |
+
+Each tile in the picker draws a miniature wireframe of the shell it applies.
+
 ### Themes
 
 Six palettes ship in the app, switchable live under **Account → Theme** and kept between sessions:
 
 | Theme | Look |
 |---|---|
-| **Amber Noir** (default) | warm near-black, gold and rose |
+| **Golden OLED** (default) | true black with gold leaf |
 | **Midnight** | deep blue with ice accents |
-| **Golden OLED** | true black with gold leaf |
 | **Forest** | deep green with copper |
 | **Plum** | plum, violet and pink |
 | **Daylight** | paper-white light theme, ink text |
@@ -64,7 +77,8 @@ Picking one repaints the whole app immediately — no restart, and the choice is
 
 ### Signing in, and the panel
 
-The login form asks for **username and password only**. The panel is not something you choose
+The login screen is the app mark and name, **username, password, remember me, sign in** — nothing
+else — plus one **Select panel** button (defaults to *Automatic*). The panel is not something you choose
 beforehand:
 
 1. The app tries the panel this account worked on last, then any other panel it has seen the account
@@ -78,6 +92,9 @@ beforehand:
 Logins are **kept between sessions**: the app signs back in automatically on start, the login screen
 offers the last accounts as **Continue as …** tiles, and **Account → Saved logins** can switch or
 forget them.
+
+Addresses, DNS/port diagnostics, the multi-server test and the anonymous panel check are not clutter
+on the login screen any more — they live in **Account → Server tools**.
 
 ### Fitting more on screen
 
@@ -105,6 +122,8 @@ left at any time without touching saved credentials.
 
 | Area | Status |
 |---|---|
+| App mark and icon on every platform (Linux menu entry, Android launcher, Windows .ico, macOS/iOS set) | yes |
+| Four switchable app layouts (Classic, Sidebar, Showcase, Dashboard) | yes |
 | Login (`player_api.php`) with clear failure reasons | yes |
 | Live TV: categories, channel grid, logos, search | yes |
 | Movies (VOD) with container-extension aware URLs | yes |
