@@ -615,7 +615,7 @@ class _StreamCard extends StatelessWidget {
                     : Image.network(
                         item.icon!,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Center(
+                        errorBuilder: (_, _, _) => const Center(
                           child: Icon(Icons.tv, color: AppTheme.border, size: 34)),
                         loadingBuilder: (c, child, p) =>
                             p == null ? child : const Center(
@@ -757,7 +757,7 @@ class _SeriesSheetState extends State<_SeriesSheet> {
                   if (widget.series.icon != null)
                     Image.network(widget.series.icon!,
                         width: 54, height: 76, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox(width: 54, height: 76)),
+                        errorBuilder: (_, _, _) => const SizedBox(width: 54, height: 76)),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(

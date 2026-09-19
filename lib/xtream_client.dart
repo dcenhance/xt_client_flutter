@@ -1,7 +1,7 @@
 /// Minimal, dependency-light Xtream-Codes API client.
 ///
 /// Speaks exactly the protocol the Spectre/XCIPTV app uses:
-///   GET <server>/player_api.php?username=..&password=..[&action=..]
+///   `GET <server>/player_api.php?username=..&password=..[&action=..]`
 /// plus the derived playlists and stream URLs.
 library;
 

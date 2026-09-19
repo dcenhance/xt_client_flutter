@@ -1,4 +1,5 @@
 /// Data models for the Xtream-Codes API.
+library;
 
 import 'dart:convert';
 

@@ -111,6 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         suffixIcon: IconButton(
+                          tooltip: _obscure ? 'Show password' : 'Hide password',
                           icon: Icon(
                             _obscure ? Icons.visibility_off : Icons.visibility,
                             size: 18,
@@ -122,17 +123,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       onSubmitted: (_) => _submit(),
                     ),
                     const SizedBox(height: 10),
-                    Row(
+                    // Wrap, not Row: on phone widths the switch row plus the help
+                    // button overflow a fixed Row by ~75 px.
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Switch(
-                          value: appState.remember,
-                          activeThumbColor: AppTheme.accent,
-                          onChanged: (v) =>
-                              appState.setCredentials(remember: v),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Switch(
+                              value: appState.remember,
+                              activeThumbColor: AppTheme.accent,
+                              onChanged: (v) => appState.setCredentials(remember: v),
+                            ),
+                            const Text('Remember me',
+                                style: TextStyle(fontSize: 13, color: AppTheme.muted)),
+                          ],
                         ),
-                        const Text('Remember me',
-                            style: TextStyle(fontSize: 13, color: AppTheme.muted)),
-                        const Spacer(),
                         TextButton(
                           onPressed: () => _importFromClipboardHint(context),
                           child: const Text('Where do I get these?',
