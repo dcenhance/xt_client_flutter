@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xtream_player/diagnostics.dart';
+import 'package:xtream_player/xtream_client.dart' show placeholderAddresses;
 
 /// Diagnostics must not lie: a placeholder DNS record, a live panel that refuses
 /// the login, and a working panel all have to produce different verdicts.

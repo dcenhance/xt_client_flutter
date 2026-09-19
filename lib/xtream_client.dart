@@ -13,8 +13,28 @@ import 'package:http/http.dart' as http;
 
 import 'models.dart';
 
+/// Addresses that mean "this record points nowhere" rather than at a server.
+/// Loopback is deliberately absent: 127.0.0.1 is a legitimate panel address.
+const placeholderAddresses = {
+  '1.1.1.1',
+  '1.0.0.1',
+  '0.0.0.0',
+  '192.0.2.1',
+  '198.51.100.1',
+  '203.0.113.1',
+};
+
 /// What went wrong, in a way the UI can explain to a human.
-enum XtreamErrorKind { unreachable, http, badResponse, rejected, expired, wrongServer }
+enum XtreamErrorKind {
+  unreachable,
+  tlsMismatch,
+  deadDns,
+  http,
+  badResponse,
+  rejected,
+  expired,
+  wrongServer,
+}
 
 class XtreamException implements Exception {
   final XtreamErrorKind kind;
@@ -29,6 +49,15 @@ class XtreamException implements Exception {
       case XtreamErrorKind.unreachable:
         return 'The host did not answer at all. Usual causes: wrong hostname/port, '
             'DNS pointing somewhere dead, firewall, or the panel not listening on that port.';
+      case XtreamErrorKind.tlsMismatch:
+        return 'That port speaks plain HTTP, not TLS — drop the https:// (Xtream panels are '
+            'normally http://host:8080). The app already retries over http, so reaching this '
+            'message means the http attempt failed too.';
+      case XtreamErrorKind.deadDns:
+        return 'The hostname resolves to an address that cannot run a panel (Cloudflare uses '
+            '1.1.1.1 / 1.0.0.1 when a DNS record points nowhere). Nothing sent there can reach a '
+            'server, so the username and password are never even transmitted. Ask whoever supplied '
+            'the address for the current host, or paste their host list into "Test a list of servers".';
       case XtreamErrorKind.wrongServer:
         return 'Either the address is not a valid URL (expected http://host:8080) or something '
             'answered that is not an Xtream panel (no JSON).';
@@ -60,6 +89,7 @@ class XtreamClient {
     required this.username,
     required this.password,
     Duration? timeout,
+    this.resolvedAddressesOverride,
   }) : _timeout = timeout ?? const Duration(seconds: 20);
 
   final String server; // normalised, e.g. http://host:8080
@@ -67,6 +97,17 @@ class XtreamClient {
   final String password;
 
   final Duration _timeout;
+
+  /// Test seam: pretend the hostname resolved to these addresses instead of
+  /// asking the system resolver.
+  final List<String>? resolvedAddressesOverride;
+
+  /// The base URL that actually worked, when it differs from what was typed
+  /// (e.g. the user typed https:// and the panel only speaks http://).
+  String? _effectiveServer;
+  String get effectiveServer => _effectiveServer ?? server;
+
+  bool get isHttps => server.startsWith('https://');
 
   /// Accepts "host:8080", "http://host:8080/", "https://host" and returns a clean base URL.
   static String normaliseServer(String raw) {
@@ -88,7 +129,7 @@ class XtreamClient {
       'password': password,
       ...extra,
     };
-    return Uri.parse('$server/player_api.php').replace(queryParameters: params);
+    return Uri.parse('$effectiveServer/player_api.php').replace(queryParameters: params);
   }
 
   /// Rejects malformed addresses with a readable message instead of letting
@@ -109,6 +150,39 @@ class XtreamClient {
   }
 
   Future<dynamic> _getJson(Uri uri) async {
+    try {
+      return await _getJsonRaw(uri);
+    } on XtreamException catch (e) {
+      // https:// to a plain-HTTP panel: retry the same host and port over http
+      // instead of telling the user the host is dead.
+      if (e.kind == XtreamErrorKind.tlsMismatch && uri.scheme == 'https') {
+        final retry = uri.replace(scheme: 'http');
+        final result = await _getJsonRaw(retry);
+        _effectiveServer = 'http://${uri.host}:${uri.port}';
+        return result;
+      }
+      rethrow;
+    }
+  }
+
+  /// Resolves the host and returns a placeholder address if there is one,
+  /// otherwise null. Never throws.
+  Future<String?> _placeholderAddress() async {
+    final host = Uri.tryParse(server)?.host ?? '';
+    if (host.isEmpty) return null;
+    try {
+      final addresses = resolvedAddressesOverride ??
+          (await InternetAddress.lookup(host)).map((a) => a.address).toList();
+      for (final a in addresses) {
+        if (placeholderAddresses.contains(a)) return a;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<dynamic> _getJsonRaw(Uri uri) async {
     http.Response res;
     try {
       res = await http
@@ -116,6 +190,16 @@ class XtreamClient {
           .timeout(_timeout);
     } on TimeoutException {
       throw XtreamException(XtreamErrorKind.unreachable, 'Timed out talking to $server');
+    } on HandshakeException catch (e) {
+      throw XtreamException(
+        XtreamErrorKind.tlsMismatch,
+        'TLS handshake with ${uri.host}:${uri.port} failed: ${e.message}',
+      );
+    } on TlsException catch (e) {
+      throw XtreamException(
+        XtreamErrorKind.tlsMismatch,
+        'TLS handshake with ${uri.host}:${uri.port} failed: ${e.message}',
+      );
     } on SocketException catch (e) {
       throw XtreamException(
         XtreamErrorKind.unreachable,
@@ -124,12 +208,26 @@ class XtreamClient {
     } on HttpException catch (e) {
       throw XtreamException(XtreamErrorKind.unreachable, 'HTTP failure to $server: ${e.message}');
     } catch (e) {
-      throw XtreamException(XtreamErrorKind.unreachable, 'Cannot reach $server: $e');
+      final text = '$e';
+      if (text.contains('WRONG_VERSION_NUMBER') || text.contains('HandshakeException')) {
+        throw XtreamException(
+          XtreamErrorKind.tlsMismatch,
+          'TLS handshake with ${uri.host}:${uri.port} failed: $text',
+        );
+      }
+      throw XtreamException(XtreamErrorKind.unreachable, 'Cannot reach $server: $text');
     }
 
     final body = res.body.trim();
     final looksJson = body.startsWith('{') || body.startsWith('[');
     if (!looksJson) {
+      // A TLS server answering an http:// request sends a binary record header.
+      if (body.isNotEmpty && (body.codeUnitAt(0) == 0x16 || body.contains('\u0016\u0003'))) {
+        throw XtreamException(
+          XtreamErrorKind.tlsMismatch,
+          '$server answered with TLS, so it needs https://',
+        );
+      }
       final looksCloudflareDns =
           body.contains('error code: 1034') || body.contains('Error 1034');
       if (looksCloudflareDns) {
@@ -165,7 +263,32 @@ class XtreamClient {
   /// Logs in and returns the account block. Throws [XtreamException] when the
   /// panel is unreachable or refuses the credentials.
   Future<AccountInfo> login() async {
-    final data = await _getJson(_api());
+    _ensureValidServer();
+    dynamic data;
+    try {
+      data = await _getJson(_api());
+    } on XtreamException catch (e) {
+      // Before blaming credentials, ports or TLS: check whether the hostname
+      // points at a placeholder address. Then nothing can ever work.
+      const overridable = {
+        XtreamErrorKind.unreachable,
+        XtreamErrorKind.tlsMismatch,
+        XtreamErrorKind.http,
+      };
+      if (overridable.contains(e.kind)) {
+        final dead = await _placeholderAddress();
+        if (dead != null) {
+          final host = Uri.tryParse(server)?.host ?? server;
+          throw XtreamException(
+            XtreamErrorKind.deadDns,
+            'DNS for $host points at $dead, a placeholder address — no server is reachable there',
+            statusCode: e.statusCode,
+            body: dead,
+          );
+        }
+      }
+      rethrow;
+    }
     if (data is! Map) {
       throw XtreamException(XtreamErrorKind.badResponse, 'Unexpected login response');
     }
@@ -249,14 +372,14 @@ class XtreamClient {
 
   String liveUrl(StreamItem item, {String? extension}) {
     final ext = extension ?? 'ts';
-    return '$server/live/$username/$password/${item.id}.$ext';
+    return '$effectiveServer/live/$username/$password/${item.id}.$ext';
   }
 
   String vodUrl(StreamItem item) =>
-      '$server/movie/$username/$password/${item.id}.${item.containerExtension ?? 'mp4'}';
+      '$effectiveServer/movie/$username/$password/${item.id}.${item.containerExtension ?? 'mp4'}';
 
   String seriesEpisodeUrl(String episodeId, String extension) =>
-      '$server/series/$username/$password/$episodeId.$extension';
+      '$effectiveServer/series/$username/$password/$episodeId.$extension';
 
   /// Series episodes need one extra call: action=get_series_info&series_id=..
   Future<List<StreamItem>> seriesEpisodes(StreamItem series) async {
@@ -288,7 +411,7 @@ class XtreamClient {
   }
 
   String playlistUrl({bool hls = false}) =>
-      '$server/get.php?username=$username&password=$password&type=m3u_plus&output=${hls ? 'm3u8' : 'ts'}';
+      '$effectiveServer/get.php?username=$username&password=$password&type=m3u_plus&output=${hls ? 'm3u8' : 'ts'}';
 
-  String epgUrl() => '$server/xmltv.php?username=$username&password=$password';
+  String epgUrl() => '$effectiveServer/xmltv.php?username=$username&password=$password';
 }

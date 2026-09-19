@@ -15,19 +15,6 @@ import 'dart:io';
 
 import 'xtream_client.dart';
 
-/// Addresses that mean "this record points nowhere" rather than at a server.
-/// Loopback is deliberately *not* here: 127.0.0.1 is a legitimate (if unusual)
-/// panel address, and a loopback panel that answers is handled by the probe
-/// results before this list is consulted.
-const placeholderAddresses = {
-  '1.1.1.1',
-  '1.0.0.1',
-  '0.0.0.0',
-  '192.0.2.1',
-  '198.51.100.1',
-  '203.0.113.1',
-};
-
 class PortProbe {
   final int port;
   final bool reachable;

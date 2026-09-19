@@ -84,7 +84,9 @@ class AppState extends ChangeNotifier {
       final info = await c.login();
       client = c;
       account = info;
-      server = c.server;
+      // Keep the address that actually worked (the app may have switched
+      // https:// to http:// automatically).
+      server = c.effectiveServer;
       await _persist();
       _cache.clear();
       _categoryCache.clear();
