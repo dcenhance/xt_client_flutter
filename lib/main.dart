@@ -26,7 +26,7 @@ class XtreamPlayerApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: appState,
       builder: (context, _) => MaterialApp(
-        title: 'Orion Player',
+        title: 'Aurum',
         debugShowCheckedModeBanner: false,
         // Rebuilt from the active palette, so picking a theme repaints at once.
         theme: AppTheme.data(),

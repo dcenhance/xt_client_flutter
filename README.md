@@ -1,4 +1,4 @@
-# Orion Player
+# Aurum
 
 A cross-platform IPTV client for **Xtream-Codes** panels — Linux, Windows, Android and iOS —
 built so a subscription can be used *without* the phone app that normally locks it in.
@@ -10,7 +10,7 @@ so the three values your provider gives you (server, username, password) are all
 
 ```
 ┌───────────────┐   player_api.php?username=..&password=..   ┌──────────────────┐
-│ Orion Player  │ ─────────────────────────────────────────► │ your IPTV panel  │
+│ Aurum  │ ─────────────────────────────────────────► │ your IPTV panel  │
 │  Linux/Win/   │ ◄─────── live / VOD / series / EPG ─────── │ (host:8080 …)    │
 │  Android      │   /live/u/p/<id>.ts · /movie/… · /series/…  └──────────────────┘
 └───────────────┘
@@ -35,9 +35,16 @@ so the three values your provider gives you (server, username, password) are all
 
 ---
 
+## The name
+
+**Aurum** is Latin for gold — the app's default palette is gold on black, and the mark is a gold play
+glyph inside a broken orbital ring. It is a placeholder of taste, not a law: the display name lives in
+a handful of places (window titles, the Android label, the iOS bundle name, the desktop entry, this
+file) and nothing else depends on it.
+
 ## What it does
 
-The app is **Orion Player**: a gold play glyph inside a broken orbital ring, with Orion's three
+The app is **Aurum**: a gold play glyph inside a broken orbital ring, with Aurum's three
 belt stars riding the arc — a few large shapes on a deep-black squircle so it still reads at 48 px.
 Six marks ship with the app — **Orbit**, **Belt**, **Monogram**, **Prism**, **Aperture** and
 **Stars** — and **Account → App icon** switches between them live; the choice is remembered and

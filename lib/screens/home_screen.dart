@@ -265,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Row(
               children: [
-                const Text('Orion Player'),
+                const Text('Aurum'),
                 const SizedBox(width: 16),
                 if (!narrow && a != null) _AccountChip(account: a),
                 if (appState.guest) const _GuestChip(),
@@ -1352,7 +1352,7 @@ class _SidebarShell extends StatelessWidget {
                           children: [
                             AppMark(size: 30),
                             const SizedBox(width: 10),
-                            Text('Orion Player',
+                            Text('Aurum',
                                 style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
@@ -1512,7 +1512,7 @@ class _ShowcaseShell extends StatelessWidget {
                   AppMark(size: 28),
                   const SizedBox(width: 10),
                   if (showWordmark)
-                    Text('Orion Player',
+                    Text('Aurum',
                         style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text)),
                   const SizedBox(width: 14),
@@ -1845,7 +1845,7 @@ class _DashboardShellState extends State<_DashboardShell> {
                     AppMark(size: 30),
                   const SizedBox(width: 10),
                   if (!widget.narrow) ...[
-                    Text(_entered ? appState.tabLabel : 'Orion Player',
+                    Text(_entered ? appState.tabLabel : 'Aurum',
                         style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -2297,7 +2297,7 @@ class _CinemaShell extends StatelessWidget {
                       AppMark(size: 28),
                       const SizedBox(width: 10),
                       if (!narrow)
-                        Text('Orion Player',
+                        Text('Aurum',
                             style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -2432,7 +2432,7 @@ class _MasterDetailShell extends StatelessWidget {
                     children: [
                       AppMark(size: 24),
                       const SizedBox(width: 9),
-                      Text('Orion',
+                      Text('Aurum',
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,

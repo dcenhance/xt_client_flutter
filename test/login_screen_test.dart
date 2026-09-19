@@ -15,7 +15,7 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 600));
 
-    expect(find.text('Orion Player'), findsOneWidget);
+    expect(find.text('Aurum'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);

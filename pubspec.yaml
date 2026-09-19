@@ -1,7 +1,7 @@
 name: xtream_player
-description: Orion Player — a cross-platform Xtream-Codes IPTV client.
+description: Aurum — a cross-platform Xtream-Codes IPTV client.
 publish_to: 'none'
-version: 0.5.1+12
+version: 0.6.0+13
 
 environment:
   sdk: ^3.13.4
@@ -25,5 +25,5 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/orion-mark.png
+    - assets/aurum-mark.png
     - assets/marks/
