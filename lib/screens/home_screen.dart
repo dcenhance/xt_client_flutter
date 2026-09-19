@@ -286,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     Text(
                       '${appState.visibleItems.length} of ${appState.items.length} items',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
                     ),
                   ],
                 ),
@@ -345,7 +345,7 @@ class _SearchField extends StatelessWidget {
         onChanged: appState.setSearch,
         decoration: InputDecoration(
           hintText: 'Search…',
-          prefixIcon: const Icon(Icons.search, size: 16, color: AppTheme.muted),
+          prefixIcon: Icon(Icons.search, size: 16, color: AppTheme.muted),
           suffixIcon: appState.search.isEmpty
               ? null
               : IconButton(
@@ -444,7 +444,7 @@ class _TabBar extends StatelessWidget {
     };
     return Container(
       height: 46,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.surface,
         border: Border(bottom: BorderSide(color: AppTheme.border)),
       ),
@@ -526,7 +526,7 @@ class _CategoryRail extends StatelessWidget {
                 ),
               ),
             if (cats.isEmpty && !appState.busy)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(14),
                 child: Text('No categories',
                     style: TextStyle(fontSize: 12, color: AppTheme.muted)),
@@ -569,7 +569,7 @@ class _CategoryRow extends StatelessWidget {
               ),
             ),
             if (count != null)
-              Text('$count', style: const TextStyle(fontSize: 10.5, color: AppTheme.muted)),
+              Text('$count', style: TextStyle(fontSize: 10.5, color: AppTheme.muted)),
           ],
         ),
       ),
@@ -594,41 +594,61 @@ class _ContentArea extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('Nothing to show for this category.',
             style: TextStyle(fontSize: 13, color: AppTheme.muted)),
       );
     }
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
-      child: st.viewMode == ViewMode.list
-          ? ListView.builder(
-              padding: EdgeInsets.all(compact ? 6 : 10),
-              itemCount: items.length,
-              itemBuilder: (context, i) => _StreamRow(
-                item: items[i],
-                dense: compact,
-                onSelect: () => _open(context, items[i]),
-              ),
-            )
-          : GridView.builder(
-              padding: EdgeInsets.all(compact ? 8 : 14),
-              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: compact ? 146 : 190,
-                childAspectRatio: compact ? 1.02 : 0.78,
-                mainAxisSpacing: compact ? 7 : 12,
-                crossAxisSpacing: compact ? 7 : 12,
-              ),
-              itemCount: items.length,
-              itemBuilder: (context, i) {
-                final item = items[i];
-                return _StreamCard(
-                  item: item,
-                  compact: compact,
-                  onSelect: () => _open(context, item),
-                );
-              },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // A wide, poster-led strip on top — the part that makes a catalogue
+          // feel curated rather than dumped in a grid. Hidden while searching
+          // and inside a category, where the flat list is what you want.
+          if (!compact &&
+              st.viewMode == ViewMode.grid &&
+              st.search.trim().isEmpty &&
+              st.selectedCategoryId == null &&
+              items.length > 6)
+            _FeaturedRow(
+              title: st.tab == ContentTab.live ? 'On now' : 'Featured',
+              items: items.take(14).toList(),
+              onOpen: (item) => _open(context, item),
             ),
+          Expanded(
+            child: st.viewMode == ViewMode.list
+                ? ListView.builder(
+                    padding: EdgeInsets.all(compact ? 6 : 10),
+                    itemCount: items.length,
+                    itemBuilder: (context, i) => _StreamRow(
+                      item: items[i],
+                      dense: compact,
+                      onSelect: () => _open(context, items[i]),
+                    ),
+                  )
+                : GridView.builder(
+                    padding: EdgeInsets.all(compact ? 8 : 14),
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: compact ? 146 : 190,
+                      childAspectRatio: compact ? 1.02 : 0.78,
+                      mainAxisSpacing: compact ? 7 : 12,
+                      crossAxisSpacing: compact ? 7 : 12,
+                    ),
+                    itemCount: items.length,
+                    itemBuilder: (context, i) {
+                      final item = items[i];
+                      return _StreamCard(
+                        item: item,
+                        compact: compact,
+                        onSelect: () => _open(context, item),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -655,7 +675,7 @@ class _GuestChip extends StatelessWidget {
         border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.lock_open, size: 12, color: AppTheme.accent),
@@ -668,6 +688,8 @@ class _GuestChip extends StatelessWidget {
   }
 }
 
+/// The poster tile. Art fills the top, a soft gradient under the caption keeps
+/// the text readable on bright artwork, and the whole tile lifts on focus.
 class _StreamCard extends StatelessWidget {
   const _StreamCard({required this.item, required this.onSelect, this.compact = false});
 
@@ -678,40 +700,77 @@ class _StreamCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FocusRing(
+      borderRadius: AppTheme.cardRadius,
       onSelect: onSelect,
       child: Container(
         decoration: BoxDecoration(
           color: AppTheme.card,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AppTheme.cardRadius),
           border: Border.all(color: AppTheme.border),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.background.withValues(alpha: 0.5),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: Container(
-                color: const Color(0xFF0B0D10),
-                child: item.icon == null
-                    ? const Center(
-                        child: Icon(Icons.tv, color: AppTheme.border, size: 34))
-                    : Image.network(
-                        item.icon!,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const Center(
-                          child: Icon(Icons.tv, color: AppTheme.border, size: 34)),
-                        loadingBuilder: (c, child, p) =>
-                            p == null ? child : const Center(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(color: AppTheme.surface),
+                  if (item.icon == null)
+                    Center(
+                      child: Icon(
+                        item.kind == 'series'
+                            ? Icons.video_library_outlined
+                            : (item.kind == 'live' ? Icons.sensors : Icons.movie_outlined),
+                        color: AppTheme.border,
+                        size: 30,
+                      ),
+                    )
+                  else
+                    Image.network(
+                      item.icon!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: AppTheme.border, size: 26),
+                      ),
+                      loadingBuilder: (c, child, p) => p == null
+                          ? child
+                          : Center(
                               child: SizedBox(
-                                width: 16, height: 16,
+                                width: 16,
+                                height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               ),
                             ),
+                    ),
+                  // Warm sheen so flat artwork does not look like a dead tile.
+                  DecoratedBox(
+                    decoration: BoxDecoration(gradient: AppTheme.scrim()),
+                  ),
+                  if (item.kind == 'live')
+                    Positioned(
+                      left: 6,
+                      top: 6,
+                      child: _Pill(
+                        label: 'LIVE',
+                        color: AppTheme.accent2,
                       ),
+                    ),
+                ],
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(compact ? 6 : 9, compact ? 4 : 7, compact ? 6 : 9, compact ? 6 : 9),
+              padding: EdgeInsets.fromLTRB(
+                  compact ? 8 : 10, compact ? 6 : 8, compact ? 8 : 10, compact ? 8 : 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -720,17 +779,123 @@ class _StreamCard extends StatelessWidget {
                     maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: compact ? 11 : 12,
+                      fontSize: compact ? 11.5 : 12.5,
                       color: AppTheme.text,
+                      fontWeight: FontWeight.w600,
                       height: 1.25,
                     ),
                   ),
+                  if (!compact)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        item.kind == 'series'
+                            ? 'Series'
+                            : (item.kind == 'live' ? 'Live channel' : 'Movie'),
+                        style: TextStyle(fontSize: 10.5, color: AppTheme.muted),
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Small coloured label used on live tiles.
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+          color: AppTheme.isDark ? const Color(0xFF15100B) : Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal poster strip at the top of a catalogue, with a section heading.
+class _FeaturedRow extends StatelessWidget {
+  const _FeaturedRow({
+    required this.title,
+    required this.items,
+    required this.onOpen,
+  });
+
+  final String title;
+  final List<StreamItem> items;
+  final void Function(StreamItem) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 15,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [AppTheme.accent, AppTheme.accent2],
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.text,
+                      letterSpacing: 0.2)),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 196,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            itemCount: items.length,
+            itemBuilder: (context, i) => Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: SizedBox(
+                width: 132,
+                child: _StreamCard(
+                  item: items[i],
+                  onSelect: () => onOpen(items[i]),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
     );
   }
 }
@@ -766,12 +931,12 @@ class _StreamRow extends StatelessWidget {
                 child: Container(
                   color: const Color(0xFF0B0D10),
                   child: item.icon == null
-                      ? const Icon(Icons.tv, color: AppTheme.border, size: 15)
+                      ? Icon(Icons.tv, color: AppTheme.border, size: 15)
                       : Image.network(
                           item.icon!,
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) =>
-                              const Icon(Icons.tv, color: AppTheme.border, size: 15),
+                              Icon(Icons.tv, color: AppTheme.border, size: 15),
                           loadingBuilder: (c, child, p) => p == null
                               ? child
                               : const SizedBox.shrink(),
@@ -792,13 +957,13 @@ class _StreamRow extends StatelessWidget {
               ),
             ),
             if (item.kind == 'series')
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(left: 6),
                 child: Icon(Icons.video_library_outlined,
                     size: 13, color: AppTheme.muted),
               ),
             if (item.kind == 'live')
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(left: 6),
                 child: Icon(Icons.sensors, size: 13, color: AppTheme.accent),
               ),
@@ -830,16 +995,16 @@ class _ErrorPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, color: AppTheme.danger, size: 26),
+              Icon(Icons.error_outline, color: AppTheme.danger, size: 26),
               const SizedBox(height: 12),
               Text(message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppTheme.danger, fontSize: 13)),
+                  style: TextStyle(color: AppTheme.danger, fontSize: 13)),
               if (hint != null) ...[
                 const SizedBox(height: 10),
                 Text(hint!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5)),
+                    style: TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5)),
               ],
               const SizedBox(height: 16),
               FilledButton(
@@ -931,7 +1096,7 @@ class _SeriesSheetState extends State<_SeriesSheet> {
                           [widget.series.genre, widget.series.rating]
                               .where((e) => e != null && e.isNotEmpty)
                               .join(' · '),
-                          style: const TextStyle(fontSize: 12, color: AppTheme.muted),
+                          style: TextStyle(fontSize: 12, color: AppTheme.muted),
                         ),
                       ],
                     ),
@@ -950,7 +1115,7 @@ class _SeriesSheetState extends State<_SeriesSheet> {
                   : _error != null
                       ? Center(
                           child: Text(_error!,
-                              style: const TextStyle(color: AppTheme.muted, fontSize: 13)))
+                              style: TextStyle(color: AppTheme.muted, fontSize: 13)))
                       : ListView.builder(
                           itemCount: _episodes.length,
                           itemBuilder: (context, i) {
@@ -976,10 +1141,10 @@ class _SeriesSheetState extends State<_SeriesSheet> {
                                     children: [
                                       Expanded(
                                         child: Text(ep.name,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 fontSize: 13, color: AppTheme.text)),
                                       ),
-                                      const Icon(Icons.play_arrow,
+                                      Icon(Icons.play_arrow,
                                           size: 17, color: AppTheme.accent),
                                     ],
                                   ),

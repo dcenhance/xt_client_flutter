@@ -4,6 +4,7 @@ import '../diagnostics.dart';
 import '../main.dart';
 import '../panels.dart';
 import '../theme.dart';
+import '../store.dart';
 import '../xtream_client.dart';
 import '../widgets/focus_ring.dart';
 
@@ -27,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   DiagnosticsResult? _diag;
 
   bool _anonBusy = false;
+  bool _advanced = false;
   List<AnonProbe> _anonResults = const [];
 
   /// Looks at each known panel without sending any credentials: which ones are
@@ -104,13 +106,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    appState.setCredentials(
-      server: _server.text,
+    await appState.signIn(
       username: _user.text,
       password: _pass.text,
-      remember: appState.remember,
+      // No server typed: let the app find the panel itself.
+      server: _server.text.trim().isEmpty ? null : _server.text.trim(),
     );
-    await appState.login();
   }
 
   @override
@@ -127,47 +128,71 @@ class _LoginScreenState extends State<LoginScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppTheme.accent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppTheme.border),
-                          ),
-                          child: const Icon(Icons.live_tv_outlined,
-                              color: AppTheme.accent, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Xtream Player',
-                                style: TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.text)),
-                            SizedBox(height: 2),
-                            Text('Xtream-Codes compatible API',
-                                style: TextStyle(fontSize: 12, color: AppTheme.muted)),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-                    TextField(
-                      controller: _server,
-                      decoration: const InputDecoration(
-                        labelText: 'Server',
-                        hintText: 'https or http://server:port',
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.headerGradient(),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppTheme.border),
                       ),
-                      keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      onSubmitted: (_) => _submit(),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [AppTheme.accent, AppTheme.accent2],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(Icons.play_arrow_rounded,
+                                color: AppTheme.onAccent, size: 30),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Xtream Player',
+                                    style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.text,
+                                        letterSpacing: 0.2)),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Your subscription, on every screen you own.',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.muted,
+                                      height: 1.35),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 22),
+                    if (appState.recentLogins.isNotEmpty) ...[
+                      Text('Continue as',
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.muted,
+                              letterSpacing: 0.4)),
+                      const SizedBox(height: 8),
+                      for (final l in appState.recentLogins.take(3))
+                        _SavedLoginTile(
+                          login: l,
+                          onResume: () => appState.resumeLogin(l),
+                          onForget: () => appState.forget(l),
+                        ),
+                      const SizedBox(height: 14),
+                    ],
                     TextField(
                       controller: _user,
                       decoration: const InputDecoration(labelText: 'Username'),
@@ -208,7 +233,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               activeThumbColor: AppTheme.accent,
                               onChanged: (v) => appState.setCredentials(remember: v),
                             ),
-                            const Text('Remember me',
+                            Text('Remember me',
                                 style: TextStyle(fontSize: 13, color: AppTheme.muted)),
                           ],
                         ),
@@ -230,6 +255,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                   strokeWidth: 2, color: Colors.black))
                           : const Text('Sign In'),
                     ),
+                    if (appState.discoveryNote != null) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              appState.discoveryNote!,
+                              style: TextStyle(
+                                  fontSize: 12, color: AppTheme.muted),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (appState.error != null) ...[
                       const SizedBox(height: 18),
                       _ErrorBox(message: appState.error!, hint: appState.errorHint),
@@ -274,6 +319,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ],
                     const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _advanced = !_advanced),
+                        icon: Icon(_advanced ? Icons.expand_less : Icons.tune, size: 16),
+                        label: Text(
+                            _advanced
+                                ? 'Hide options'
+                                : 'Panel, server address, diagnostics',
+                            style: const TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                    if (_advanced) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _server,
+                        decoration: const InputDecoration(
+                          labelText: 'Server address (optional)',
+                          hintText: 'Leave empty — the app finds your panel',
+                        ),
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        onSubmitted: (_) => _submit(),
+                      ),
+                      const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
@@ -306,7 +376,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ),
-                    if (_showList) _serversListSection(),
+                      if (_showList) _serversListSection(),
+                    ],
                     if (_anonResults.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _AnonBox(
@@ -320,8 +391,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                     const SizedBox(height: 10),
-                    const Text(
-                      'The credentials you enter are sent only to the server above. '
+                    Text(
+                      'Your username and password only ever go to the panel you sign in to. '
                       'Nothing is forwarded anywhere else.',
                       style: TextStyle(fontSize: 11, color: AppTheme.muted, height: 1.5),
                     ),
@@ -375,11 +446,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(p.name,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 13, color: AppTheme.text)),
                                     const SizedBox(height: 2),
                                     Text(p.url,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 11,
                                             fontFamily: 'monospace',
                                             color: AppTheme.muted)),
@@ -387,14 +458,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               if (_server.text.trim() == p.url)
-                                const Icon(Icons.check_circle,
+                                Icon(Icons.check_circle,
                                     size: 18, color: AppTheme.accent),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.fromLTRB(4, 14, 4, 0),
                     child: Text(
                       'These are the panels that ship with the Spectre build this subscription came '
@@ -442,7 +513,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const Text('Try several servers with the same login',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'One address per line. Useful when the address you have is dead — the app can tell you '
             'which of a provider\'s hosts actually accepts your account.',
             style: TextStyle(fontSize: 11.5, color: AppTheme.muted, height: 1.5),
@@ -499,10 +570,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(r.server,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12, fontFamily: 'monospace', color: AppTheme.text)),
                           Text(r.note,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 11, color: AppTheme.muted, height: 1.4)),
                         ],
                       ),
@@ -555,6 +626,94 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+/// One remembered login on the login screen: tap to sign straight back in,
+/// X to forget it for good.
+class _SavedLoginTile extends StatelessWidget {
+  const _SavedLoginTile({
+    required this.login,
+    required this.onResume,
+    required this.onForget,
+  });
+
+  final SavedLogin login;
+  final VoidCallback onResume;
+  final VoidCallback onForget;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: FocusRing(
+        borderRadius: 14,
+        onSelect: onResume,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onResume,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+            decoration: BoxDecoration(
+              color: AppTheme.card,
+              border: Border.all(color: AppTheme.border),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppTheme.accent, AppTheme.accent2],
+                    ),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Text(
+                    login.username.isEmpty
+                        ? '?'
+                        : login.username.characters.first.toUpperCase(),
+                    style: TextStyle(
+                        color: AppTheme.onAccent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(login.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13.5,
+                              color: AppTheme.text,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(login.server,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Forget this login',
+                  onPressed: onForget,
+                  icon: Icon(Icons.close, size: 16, color: AppTheme.muted),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AnonBox extends StatelessWidget {
   const _AnonBox({
     required this.results,
@@ -581,9 +740,9 @@ class _AnonBox extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.travel_explore, size: 15, color: AppTheme.accent),
+              Icon(Icons.travel_explore, size: 15, color: AppTheme.accent),
               const SizedBox(width: 6),
-              const Expanded(
+              Expanded(
                 child: Text('Panels, checked without any login',
                     style: TextStyle(fontSize: 12.5, color: AppTheme.text)),
               ),
@@ -595,7 +754,7 @@ class _AnonBox extends StatelessWidget {
               ),
             ],
           ),
-          const Text(
+          Text(
             'No username or password was sent. A panel marked OPEN hands out its '
             'categories to anyone, so its channels can be browsed right away.',
             style: TextStyle(fontSize: 11, color: AppTheme.muted, height: 1.45),
@@ -622,7 +781,7 @@ class _AnonBox extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(r.server,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12, color: AppTheme.text)),
                         Text(r.label,
                             style: TextStyle(
@@ -670,7 +829,7 @@ class _DiagnosticsBox extends StatelessWidget {
           const SizedBox(height: 10),
           SelectableText(
             result.report.join('\n'),
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 11.5, color: AppTheme.muted, fontFamily: 'monospace', height: 1.5),
           ),
           if (working != null) ...[
@@ -708,17 +867,17 @@ class _ErrorBox extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.error_outline, color: AppTheme.danger, size: 18),
+              Icon(Icons.error_outline, color: AppTheme.danger, size: 18),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(message,
-                    style: const TextStyle(color: AppTheme.danger, fontSize: 13, height: 1.4)),
+                    style: TextStyle(color: AppTheme.danger, fontSize: 13, height: 1.4)),
               ),
             ],
           ),
           if (hint != null) ...[
             const SizedBox(height: 10),
-            Text(hint!, style: const TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5)),
+            Text(hint!, style: TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5)),
           ],
         ],
       ),

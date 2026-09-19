@@ -47,6 +47,38 @@ so the three values your provider gives you (server, username, password) are all
 Both are fully D-pad / remote navigable — the mobile shell is what you get on Android TV and
 Fire TV too.
 
+### Themes
+
+Six palettes ship in the app, switchable live under **Account → Theme** and kept between sessions:
+
+| Theme | Look |
+|---|---|
+| **Amber Noir** (default) | warm near-black, gold and rose |
+| **Midnight** | deep blue with ice accents |
+| **Golden OLED** | true black with gold leaf |
+| **Forest** | deep green with copper |
+| **Plum** | plum, violet and pink |
+| **Daylight** | paper-white light theme, ink text |
+
+Picking one repaints the whole app immediately — no restart, and the choice is remembered.
+
+### Signing in, and the panel
+
+The login form asks for **username and password only**. The panel is not something you choose
+beforehand:
+
+1. The app tries the panel this account worked on last, then any other panel it has seen the account
+   work on, then the panels it knows about, and stops at the first that accepts it — the button shows
+   `Trying EUROPE 1 (1/5)…` while it works.
+2. A typed server address is honoured first if you have one, under
+   **Options → server address**.
+3. After signing in you can move the same account to another panel from **Account → Panel** —
+   credentials are reused, nothing is retyped.
+
+Logins are **kept between sessions**: the app signs back in automatically on start, the login screen
+offers the last accounts as **Continue as …** tiles, and **Account → Saved logins** can switch or
+forget them.
+
 ### Fitting more on screen
 
 Two toggles sit in the app bar on every platform, and both are remembered:
@@ -81,7 +113,9 @@ left at any time without touching saved credentials.
 | Playback on Linux/Windows/Android (libmpv through `media_kit`) | yes |
 | Playlist + EPG extraction for other players (copy buttons) | yes |
 | HLS output when the panel advertises `m3u8` | yes |
-| Remember me (server/user/password in local prefs) | yes |
+| Remember me — logins kept between sessions, auto sign-in, switch/forget | yes |
+| Six live-switchable themes (warm dark default, OLED black, light) | yes |
+| Catalogue look: featured poster strip, rounded poster tiles, LIVE badges | yes |
 | Catch-up/archive playback, recording, parental control, M3U-only mode | not implemented |
 | Raw gamepads that expose no keyboard events | not mapped |
 
@@ -231,13 +265,14 @@ for M3U + XMLTV) or any other Xtream-compatible player.
 authenticates, and writes a ready-to-play `.m3u` (created with mode 600, because it embeds
 the password).
 
-## Panel picker (parity with the Spectre/XCIPTV build)
+## Panel list (parity with the Spectre/XCIPTV build)
 
 The app these credentials came from does **not** log in to an address you type: it ships a
-`SELECT PANEL` list and picks the server from it. This client reproduces that list under
-**Select panel** (EUROPE 1 · EUROPE 2 · TÜRKİYE PANEL 1 · TÜRKİYE PANEL 2 · TÜRKİYE İZNE GELENLER),
-fills the server field from your choice, and pre-fills **Test a list of servers** with all five so
-one tap tells you which one answers from your current network.
+`SELECT PANEL` list and takes the server from it. This client carries the same list
+(EUROPE 1 · EUROPE 2 · TÜRKİYE PANEL 1 · TÜRKİYE PANEL 2 · TÜRKİYE İZNE GELENLER) and uses it two ways:
+automatically while signing in (see above), and as the switcher under **Account → Panel**. Under
+**Options** on the login screen there is still a manual **Select panel** dialog and a
+**Test a list of servers** box, which fills itself with all five so one tap reports which answer.
 
 The list is in `lib/panels.dart` — plain data, edit or empty it as you like.
 

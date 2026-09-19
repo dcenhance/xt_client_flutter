@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
+import 'panels.dart';
+import 'theme.dart';
 import 'xtream_client.dart';
 
 enum ContentTab { live, movies, series }
@@ -11,6 +15,52 @@ enum ViewMode { grid, list }
 
 enum Density { comfortable, compact }
 
+/// A login the app keeps between sessions, so the user does not have to retype
+/// it and a panel can be re-picked later without asking for credentials again.
+class SavedLogin {
+  SavedLogin({
+    required this.server,
+    required this.username,
+    required this.password,
+    required this.label,
+    DateTime? lastUsed,
+  }) : lastUsed = lastUsed ?? DateTime.now();
+
+  String server;
+  String username;
+  String password;
+  String label;
+  DateTime lastUsed;
+
+  String get key => '$username@$server';
+
+  Map<String, dynamic> toJson() => {
+        'server': server,
+        'username': username,
+        'password': password,
+        'label': label,
+        'lastUsed': lastUsed.toIso8601String(),
+      };
+
+  static SavedLogin fromJson(Map<String, dynamic> j) => SavedLogin(
+        server: (j['server'] ?? '') as String,
+        username: (j['username'] ?? '') as String,
+        password: (j['password'] ?? '') as String,
+        label: (j['label'] ?? '') as String,
+        lastUsed: DateTime.tryParse((j['lastUsed'] ?? '') as String) ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+
+  /// "juppborken · EUROPE 1"
+  String get displayName {
+    final preset = kPanelPresets.where((p) => p.url == server).toList();
+    final place = preset.isNotEmpty ? preset.first.name : host;
+    return '$username · $place';
+  }
+
+  String get host => Uri.tryParse(server)?.host ?? server;
+}
+
 class AppState extends ChangeNotifier {
   static const _kServer = 'server';
   static const _kUser = 'user';
@@ -18,6 +68,9 @@ class AppState extends ChangeNotifier {
   static const _kRemember = 'remember';
   static const _kViewMode = 'view_mode';
   static const _kDensity = 'density';
+  static const _kTheme = 'theme';
+  static const _kLogins = 'logins';
+  static const _kWorking = 'working_servers';
 
   SharedPreferences? _prefs;
 
@@ -27,6 +80,7 @@ class AppState extends ChangeNotifier {
   bool remember = true;
   ViewMode viewMode = ViewMode.grid;
   Density density = Density.comfortable;
+  String themeId = kAmberNoir.id;
 
   /// True when browsing a panel that answers without credentials.
   bool guest = false;
@@ -35,6 +89,15 @@ class AppState extends ChangeNotifier {
   String? error;
   String? errorHint;
   AccountInfo? account;
+
+  /// Shown while the app walks the candidate panels during a login.
+  String? discoveryNote;
+
+  /// Servers that have accepted this account before, newest first — tried
+  /// before anything else so the usual login is a single request.
+  List<String> workingServers = const [];
+
+  List<SavedLogin> logins = [];
 
   ContentTab tab = ContentTab.live;
   List<Category> categories = const [];
@@ -55,6 +118,20 @@ class AppState extends ChangeNotifier {
 
   bool get loggedIn => account != null || guest;
 
+  SavedLogin? get activeLogin {
+    for (final l in logins) {
+      if (l.server == server && l.username == username) return l;
+    }
+    return null;
+  }
+
+  /// Logins the app has kept, most recently used first.
+  List<SavedLogin> get recentLogins {
+    final copy = List<SavedLogin>.from(logins);
+    copy.sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
+    return copy;
+  }
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     server = _prefs!.getString(_kServer) ?? '';
@@ -67,10 +144,54 @@ class AppState extends ChangeNotifier {
     density = (_prefs!.getString(_kDensity) ?? 'comfortable') == 'compact'
         ? Density.compact
         : Density.comfortable;
-    if (server.isNotEmpty && username.isNotEmpty && password.isNotEmpty) {
-      await login(silent: true);
+    themeId = _prefs!.getString(_kTheme) ?? kAmberNoir.id;
+    AppTheme.use(themeId);
+    workingServers = _prefs!.getStringList(_kWorking) ?? const [];
+    _loadLogins();
+
+    // Migrate the single saved login of older builds into the new list.
+    if (logins.isEmpty && username.isNotEmpty && password.isNotEmpty) {
+      logins = [
+        SavedLogin(server: server, username: username, password: password, label: ''),
+      ];
+      await _persistLogins();
     }
+
     notifyListeners();
+
+    // Sign back in without showing the login screen: the last account, its
+    // remembered panel first.
+    final auto = recentLogins.isNotEmpty
+        ? recentLogins.first
+        : (server.isNotEmpty && username.isNotEmpty && password.isNotEmpty
+            ? SavedLogin(server: server, username: username, password: password, label: '')
+            : null);
+    if (auto != null) {
+      await signIn(
+        username: auto.username,
+        password: auto.password,
+        server: auto.server.isEmpty ? null : auto.server,
+        silent: true,
+      );
+    }
+  }
+
+  void _loadLogins() {
+    final raw = _prefs?.getString(_kLogins);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final list = jsonDecode(raw) as List;
+      logins = list
+          .map((e) => SavedLogin.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (_) {
+      logins = [];
+    }
+  }
+
+  Future<void> _persistLogins() async {
+    await _prefs?.setString(
+        _kLogins, jsonEncode(logins.map((l) => l.toJson()).toList()));
   }
 
   Future<void> setViewMode(ViewMode mode) async {
@@ -85,10 +206,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Switch the whole app to another palette and remember it.
+  Future<void> setTheme(String id) async {
+    themeId = id;
+    AppTheme.use(id);
+    await _prefs?.setString(_kTheme, id);
+    notifyListeners();
+  }
+
   /// Browse a panel that answers without credentials. No account is claimed:
   /// if the panel refuses anonymous requests, the content lists stay empty and
   /// the error explains it.
-  Future<bool> browseAsGuest(String server, {bool silent = false}) async {
+  Future<bool> browseAsGuest(String server) async {
     busy = true;
     error = null;
     errorHint = null;
@@ -102,34 +231,42 @@ class AppState extends ChangeNotifier {
     this.server = c.effectiveServer;
     guest = true;
     account = null;
-    _cache.clear();
-    _categoryCache.clear();
-    _catCache.clear();
-    selectedCategoryId = null;
-    items = const [];
-    categories = const [];
+    _clearContent();
     busy = false;
     notifyListeners();
     await loadContent(tab);
     return error == null;
   }
 
+  void _clearContent() {
+    _cache.clear();
+    _categoryCache.clear();
+    _catCache.clear();
+    selectedCategoryId = null;
+    items = const [];
+    categories = const [];
+  }
+
+  /// Ends the session but keeps the remembered logins.
   Future<void> logout() async {
     account = null;
     client = null;
     guest = false;
-    items = const [];
-    categories = const [];
-    selectedCategoryId = null;
-    _cache.clear();
-    _categoryCache.clear();
-    _catCache.clear();
+    _clearContent();
     error = null;
     errorHint = null;
-    final p = _prefs;
-    if (p != null) {
-      await p.remove(_kPass);
+    notifyListeners();
+  }
+
+  /// Forgets one stored login for good.
+  Future<void> forget(SavedLogin l) async {
+    logins = logins.where((x) => x.key != l.key).toList();
+    if (l.server == server && l.username == username) {
+      account = null;
+      client = null;
+      _clearContent();
     }
+    await _persistLogins();
     notifyListeners();
   }
 
@@ -146,60 +283,156 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<bool> login({bool silent = false}) async {
+  /// Where a login is attempted, in order: the server the caller named, the
+  /// panels this account has worked on before, every panel the app knows, and
+  /// any server from a stored login. The panel is therefore *not* something the
+  /// user has to pick up front — the app finds it, and only asks when nothing
+  /// answers.
+  List<String> candidatesFor({String? preferred}) {
+    final out = <String>[];
+    void add(String? s) {
+      final v = (s ?? '').trim();
+      if (v.isEmpty) return;
+      final norm = XtreamClient.normaliseServer(v);
+      if (!out.contains(norm)) out.add(norm);
+    }
+
+    add(preferred);
+    for (final s in workingServers) {
+      add(s);
+    }
+    for (final l in recentLogins) {
+      add(l.server);
+    }
+    for (final p in kPanelPresets) {
+      add(p.url);
+    }
+    return out;
+  }
+
+  /// Signs in. With no [server] the remembered/known panels are tried until one
+  /// accepts the account, which is what makes the panel a post-login concern.
+  Future<bool> signIn({
+    required String username,
+    required String password,
+    String? server,
+    bool silent = false,
+  }) async {
+    this.username = username.trim();
+    this.password = password;
+    if (server != null && server.trim().isNotEmpty) this.server = server.trim();
+
+    final candidates = candidatesFor(preferred: server);
     if (!silent) {
       busy = true;
       error = null;
       errorHint = null;
+      discoveryNote = candidates.length > 1 ? 'Checking panels…' : null;
       notifyListeners();
     }
-    try {
-      final c = XtreamClient(
-        server: XtreamClient.normaliseServer(server),
-        username: username.trim(),
-        password: password,
-      );
-      final info = await c.login();
-      client = c;
-      account = info;
-      // Keep the address that actually worked (the app may have switched
-      // https:// to http:// automatically).
-      server = c.effectiveServer;
-      await _persist();
-      _cache.clear();
-      _categoryCache.clear();
-      selectedCategoryId = null;
-      items = const [];
-      categories = const [];
-      error = null;
-      errorHint = null;
-      busy = false;
-      notifyListeners();
-      await loadContent(tab);
-      return true;
-    } on XtreamException catch (e) {
-      account = null;
-      client = null;
-      error = e.message;
-      errorHint = e.hint;
-      busy = false;
-      if (silent) {
-        // keep stored values, just show the login screen
-      } else {
+
+    XtreamException? lastError;
+    for (var i = 0; i < candidates.length; i++) {
+      final host = candidates[i];
+      if (!silent && candidates.length > 1) {
+        discoveryNote = 'Trying ${panelLabel(host)} (${i + 1}/${candidates.length})…';
         notifyListeners();
       }
-      notifyListeners();
-      return false;
-    } catch (e) {
-      account = null;
-      client = null;
-      error = '$e';
-      errorHint = null;
-      busy = false;
-      notifyListeners();
-      return false;
+      final c = XtreamClient(
+        server: host,
+        username: this.username,
+        password: this.password,
+      );
+      try {
+        final info = await c.login();
+        // Winner: adopt it, remember it, and put it at the front of the list.
+        this.server = c.effectiveServer;
+        client = c;
+        account = info;
+        guest = false;
+        _clearContent();
+        error = null;
+        errorHint = null;
+        discoveryNote = null;
+        busy = false;
+        await _rememberWorking(c.effectiveServer);
+        await _upsertLogin(c.effectiveServer, this.username, this.password);
+        await _persist();
+        notifyListeners();
+        await loadContent(tab);
+        return true;
+      } on XtreamException catch (e) {
+        lastError = e;
+        // auth=0 is ambiguous — a panel says that both for a wrong password and
+        // for an account it does not know — so keep walking the list rather
+        // than declaring the credentials wrong on the strength of one host.
+        if (e.kind == XtreamErrorKind.deadDns ||
+            e.kind == XtreamErrorKind.wrongServer) {
+          continue;
+        }
+      } catch (e) {
+        lastError = XtreamException(XtreamErrorKind.unreachable, '$e');
+      }
     }
+
+    account = null;
+    client = null;
+    busy = false;
+    discoveryNote = null;
+    error = lastError?.message ?? 'No panel answered.';
+    errorHint = lastError?.hint ??
+        (candidates.length > 1
+            ? 'Tried ${candidates.length} panels. Check the username and password, '
+                'or add the provider’s server address under Advanced.'
+            : null);
+    notifyListeners();
+    return false;
   }
+
+  static String panelLabel(String server) {
+    for (final p in kPanelPresets) {
+      if (XtreamClient.normaliseServer(p.url) == XtreamClient.normaliseServer(server)) {
+        return p.name;
+      }
+    }
+    return Uri.tryParse(server)?.host ?? server;
+  }
+
+  Future<void> _rememberWorking(String server) async {
+    final list = <String>[server, ...workingServers.where((s) => s != server)];
+    workingServers = list.take(8).toList();
+    await _prefs?.setStringList(_kWorking, workingServers);
+  }
+
+  Future<void> _upsertLogin(String server, String user, String pass) async {
+    final key = '$user@$server';
+    final existing = logins.where((l) => l.key == key).toList();
+    if (existing.isNotEmpty) {
+      final l = existing.first;
+      l.password = pass;
+      l.lastUsed = DateTime.now();
+    } else {
+      logins.add(SavedLogin(
+        server: server,
+        username: user,
+        password: pass,
+        label: panelLabel(server),
+      ));
+    }
+    await _persistLogins();
+  }
+
+  /// Re-login on another panel with the same account — the post-login panel
+  /// switch. Credentials come from the active login, so nothing is retyped.
+  Future<bool> switchPanel(String server) async {
+    final user = account?.username ?? username;
+    final pass = activeLogin?.password ?? password;
+    return signIn(username: user, password: pass, server: server);
+  }
+
+  /// Continue an account the app has kept.
+  Future<bool> resumeLogin(SavedLogin l) =>
+      signIn(username: l.username, password: l.password, server: l.server);
 
   void setCredentials({String? server, String? username, String? password, bool? remember}) {
     if (server != null) this.server = server;

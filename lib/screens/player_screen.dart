@@ -288,15 +288,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.warning_amber_rounded,
+                                Icon(Icons.warning_amber_rounded,
                                     color: AppTheme.danger, size: 32),
                                 const SizedBox(height: 12),
-                                const Text('Stream failed',
+                                Text('Stream failed',
                                     style: TextStyle(fontSize: 15, color: AppTheme.text)),
                                 const SizedBox(height: 8),
                                 Text(_error!,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 12, color: AppTheme.muted, height: 1.5)),
                                 const SizedBox(height: 16),
                                 Row(
@@ -378,7 +378,7 @@ class _InfoCard extends StatelessWidget {
           Text(title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, color: AppTheme.text)),
+              style: TextStyle(fontSize: 13, color: AppTheme.text)),
           if (kind == 'live' && epg.isNotEmpty) ...[
             const SizedBox(height: 6),
             for (final e in epg)
@@ -388,7 +388,7 @@ class _InfoCard extends StatelessWidget {
                   '${_clock(e.start)}–${_clock(e.end)}  ${e.title}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11.5, color: AppTheme.muted),
+                  style: TextStyle(fontSize: 11.5, color: AppTheme.muted),
                 ),
               ),
           ],
@@ -439,7 +439,7 @@ class _ControlBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.surface,
         border: Border(top: BorderSide(color: AppTheme.border)),
       ),
@@ -481,13 +481,13 @@ class _ControlBar extends StatelessWidget {
                 builder: (context, snap) {
                   final pos = snap.data ?? Duration.zero;
                   return Text(_fmt(pos),
-                      style: const TextStyle(fontSize: 11.5, color: AppTheme.muted));
+                      style: TextStyle(fontSize: 11.5, color: AppTheme.muted));
                 },
               ),
               const Spacer(),
               Text(
                 '${index + 1} / $total',
-                style: const TextStyle(fontSize: 11.5, color: AppTheme.muted),
+                style: TextStyle(fontSize: 11.5, color: AppTheme.muted),
               ),
               const SizedBox(width: 16),
               IconButton(

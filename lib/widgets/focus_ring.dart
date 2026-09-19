@@ -104,11 +104,11 @@ class KeyHintBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: Text(key,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10, color: AppTheme.text, fontFamily: 'monospace')),
               ),
               const SizedBox(width: 5),
-              Text(meaning, style: const TextStyle(fontSize: 11, color: AppTheme.muted)),
+              Text(meaning, style: TextStyle(fontSize: 11, color: AppTheme.muted)),
             ],
           ),
       ],
