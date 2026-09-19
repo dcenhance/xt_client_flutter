@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,6 +23,20 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchFocus = FocusNode();
   final _gridFocus = FocusNode();
   bool _searchOpen = false;
+  int _mobileIndex = 0;
+
+  static const _mobileTabs = <(String, IconData)>[
+    ('Live TV', Icons.live_tv_outlined),
+    ('Movies', Icons.movie_outlined),
+    ('Series', Icons.video_library_outlined),
+    ('Account', Icons.person_outline),
+  ];
+
+  static const _mobileTabsToContent = <ContentTab>[
+    ContentTab.live,
+    ContentTab.movies,
+    ContentTab.series,
+  ];
 
   @override
   void initState() {
@@ -41,6 +57,84 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  /// Bottom-navigation shell used on Android and iOS.
+  void _selectMobileTab(int index) {
+    setState(() => _mobileIndex = index);
+    if (index < _mobileTabsToContent.length) {
+      appState.setTab(_mobileTabsToContent[index]);
+    }
+  }
+
+  Widget _mobileShell(BuildContext context, AccountInfo? a) {
+    final onContent = _mobileIndex < _mobileTabsToContent.length;
+    return Scaffold(
+      appBar: AppBar(
+        title: onContent
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_mobileTabs[_mobileIndex].$1),
+                  if (a != null)
+                    Text(
+                      a.expired
+                          ? 'EXPIRED ${a.expiryLabel}'
+                          : 'expires ${a.expiryLabel} · ${a.activeConnections}/${a.maxConnections} conn',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: a.expired ? AppTheme.danger : AppTheme.muted,
+                      ),
+                    ),
+                ],
+              )
+            : const Text('Account'),
+        actions: [
+          if (onContent) ...[
+            IconButton(
+              tooltip: 'Search',
+              icon: Icon(appState.search.isEmpty ? Icons.search : Icons.search_off),
+              onPressed: () {
+                setState(() => _searchOpen = !_searchOpen);
+                if (_searchOpen) _searchFocus.requestFocus();
+              },
+            ),
+            IconButton(
+              tooltip: 'Reload',
+              icon: const Icon(Icons.refresh),
+              onPressed: () => appState.loadContent(appState.tab, refresh: true),
+            ),
+          ],
+        ],
+      ),
+      body: onContent
+          ? Column(
+              children: [
+                if (_searchOpen)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: _SearchField(controller: _searchController, focusNode: _searchFocus),
+                  ),
+                _CategoryChips(),
+                const Divider(height: 1),
+                Expanded(child: _ContentArea(gridFocus: _gridFocus)),
+                if (appState.busy) const LinearProgressIndicator(minHeight: 2),
+              ],
+            )
+          : const SettingsPage(),
+      bottomNavigationBar: NavigationBar(
+        height: 62,
+        backgroundColor: AppTheme.surface,
+        indicatorColor: AppTheme.accent.withValues(alpha: 0.18),
+        selectedIndex: _mobileIndex,
+        onDestinationSelected: _selectMobileTab,
+        destinations: [
+          for (final (label, icon) in _mobileTabs)
+            NavigationDestination(icon: Icon(icon), label: label),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -48,6 +142,11 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final a = appState.account;
         final narrow = MediaQuery.sizeOf(context).width < 720;
+        // Phones and tablets get a bottom navigation shell; desktops keep the
+        // tab strip + category rail.
+        if (Platform.isAndroid || Platform.isIOS) {
+          return _mobileShell(context, a);
+        }
         return CallbackShortcuts(
           bindings: {
             const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>

@@ -1,7 +1,9 @@
 # Xtream Player
 
-A cross-platform IPTV client for **Xtream-Codes** panels — Linux, Windows and Android —
+A cross-platform IPTV client for **Xtream-Codes** panels — Linux, Windows, Android and iOS —
 built so a subscription can be used *without* the phone app that normally locks it in.
+
+Repository: **https://github.com/dcenhance/xt_client_flutter**
 
 It speaks the same protocol the phone apps use (`/player_api.php`, `/get.php`, `/xmltv.php`),
 so the three values your provider gives you (server, username, password) are all it needs.
@@ -34,6 +36,16 @@ so the three values your provider gives you (server, username, password) are all
 ---
 
 ## What it does
+
+### One app, two interface styles
+
+| Platform | Layout |
+|---|---|
+| Linux / Windows / macOS | tab strip (Live TV · Movies · Series) + category rail + keyboard-hint footer |
+| Android / iOS | **bottom navigation** (Live TV · Movies · Series · Account), category chips, search toggled from the app bar, account summary under the title |
+
+Both are fully D-pad / remote navigable — the mobile shell is what you get on Android TV and
+Fire TV too.
 
 | Area | Status |
 |---|---|
@@ -104,6 +116,16 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 
 The Android manifest enables leanback (TV) and touch modes, so the same APK works on a
 phone and on a TV box.
+
+### iOS
+
+Apple's toolchain only runs on macOS, so this is a Mac-side step (the `ios/` folder is scaffolded and
+already carries the `NSAllowsArbitraryLoads` exception that plain-HTTP panels need):
+
+```bash
+flutter pub get
+flutter build ios --release --no-codesign     # or open ios/Runner.xcworkspace in Xcode
+```
 
 ### CI builds for all three targets
 

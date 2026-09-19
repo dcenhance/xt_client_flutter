@@ -10,12 +10,16 @@ Future<void> showSettingsSheet(BuildContext context) {
     context: context,
     backgroundColor: AppTheme.surface,
     isScrollControlled: true,
-    builder: (context) => const _SettingsSheet(),
+    builder: (context) => const SettingsContent(),
   );
 }
 
-class _SettingsSheet extends StatelessWidget {
-  const _SettingsSheet();
+/// Account/settings content, shared by the desktop bottom sheet and the mobile
+/// "Account" tab so both stay identical.
+class SettingsContent extends StatelessWidget {
+  const SettingsContent({super.key, this.showClose = true});
+
+  final bool showClose;
 
   @override
   Widget build(BuildContext context) {
@@ -37,10 +41,11 @@ class _SettingsSheet extends StatelessWidget {
                       const Text('Account & settings',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
+                      if (showClose)
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -138,39 +143,74 @@ class _SettingsSheet extends StatelessWidget {
   }
 
   static Widget _urlTile(BuildContext context, String label, String url) {
+    final masked = url.replaceAll(RegExp(r'password=[^&]+'), 'password=••••');
+    final copyButton = FocusRing(
+      borderRadius: 4,
+      onSelect: () async {
+        await Clipboard.setData(ClipboardData(text: url));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$label copied to clipboard')),
+          );
+        }
+      },
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Icon(Icons.copy, size: 16, color: AppTheme.accent),
+      ),
+    );
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.muted)),
-          ),
-          Expanded(
-            child: Text(
-              url.replaceAll(RegExp(r'password=[^&]+'), 'password=••••'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: AppTheme.text, fontFamily: 'monospace'),
-            ),
-          ),
-          FocusRing(
-            borderRadius: 4,
-            onSelect: () async {
-              await Clipboard.setData(ClipboardData(text: url));
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$label copied to clipboard')),
-                );
-              }
-            },
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Icon(Icons.copy, size: 16, color: AppTheme.accent),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final urlText = Text(
+            masked,
+            maxLines: constraints.maxWidth < 480 ? 3 : 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                fontSize: 12, color: AppTheme.text, fontFamily: 'monospace', height: 1.4),
+          );
+          // Narrow (phone) layout: label above, URL below, copy button beside.
+          if (constraints.maxWidth < 480) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.muted)),
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: urlText),
+                    copyButton,
+                  ],
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              SizedBox(
+                width: 140,
+                child: Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.muted)),
+              ),
+              Expanded(child: urlText),
+              copyButton,
+            ],
+          );
+        },
       ),
     );
   }
+}
+
+/// Standalone version used as the mobile "Account" tab (no sheet chrome, no
+/// close button — the tab bar is the navigation).
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SafeArea(
+        child: SettingsContent(showClose: false),
+      );
 }

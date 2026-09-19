@@ -82,9 +82,34 @@ jobs:
           name: xtream-player-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
+  apple:
+    needs: analyze-and-test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: macOS app
+        run: flutter build macos --release
+      - name: iOS app (unsigned)
+        run: flutter build ios --release --no-codesign
+      - name: Package
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/xtream_player.app xtream-player-macos.zip
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app xtream-player-ios-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xtream-player-apple
+          path: |
+            xtream-player-macos.zip
+            xtream-player-ios-unsigned.zip
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, windows, android]
+    needs: [linux, windows, android, apple]
     runs-on: ubuntu-latest
     permissions:
       contents: write
