@@ -259,6 +259,15 @@ flutter build ios --release --no-codesign     # or open ios/Runner.xcworkspace i
 
 ## Keyboard, TV remote and gamepad
 
+Verified with real D-pad key events on an Android device, per layout: focus starts inside the content
+(the first card/row/tile takes it), arrows move it between items, the remote's **OK** (which arrives
+as `select`) activates the focused item, and **Back**/**Esc** leaves what it opened. The focus ring is
+driven by *focus*, not by Flutter's "highlight mode", so a remote that reports no highlight mode still
+shows where you are — and the Guide's now/next is fetched for the row that actually holds focus.
+
+`test/dpad_navigation_test.dart` drives every layout with key events: focus moves, OK opens the
+focused item, Esc closes it, and the remote key map (OK, A, Back, B, Esc) is asserted.
+
 | Key / button | Action |
 |---|---|
 | `↑ ↓ ← →` | move focus |

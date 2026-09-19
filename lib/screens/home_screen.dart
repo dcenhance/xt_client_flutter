@@ -706,6 +706,7 @@ class _ContentArea extends StatelessWidget {
                     itemBuilder: (context, i) => _StreamRow(
                       item: items[i],
                       dense: compact,
+                      autofocus: i == 0,
                       onSelect: () => _open(context, items[i]),
                     ),
                   )
@@ -723,6 +724,7 @@ class _ContentArea extends StatelessWidget {
                       return _StreamCard(
                         item: item,
                         compact: compact,
+                        autofocus: i == 0,
                         onSelect: () => _open(context, item),
                       );
                     },
@@ -764,16 +766,23 @@ class _GuestChip extends StatelessWidget {
 /// The poster tile. Art fills the top, a soft gradient under the caption keeps
 /// the text readable on bright artwork, and the whole tile lifts on focus.
 class _StreamCard extends StatelessWidget {
-  const _StreamCard({required this.item, required this.onSelect, this.compact = false});
+  const _StreamCard({
+    required this.item,
+    required this.onSelect,
+    this.compact = false,
+    this.autofocus = false,
+  });
 
   final StreamItem item;
   final VoidCallback onSelect;
   final bool compact;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
     return FocusRing(
       borderRadius: AppTheme.cardRadius,
+      autofocus: autofocus,
       onSelect: onSelect,
       child: Container(
         decoration: BoxDecoration(
@@ -961,6 +970,7 @@ class _FeaturedRow extends StatelessWidget {
                 width: 132,
                 child: _StreamCard(
                   item: items[i],
+                  autofocus: i == 0,
                   onSelect: () => onOpen(items[i]),
                 ),
               ),
@@ -976,15 +986,22 @@ class _FeaturedRow extends StatelessWidget {
 /// Dense one-line row: fits roughly four times as many channels as a card and is
 /// what you want on a TV list or a long movie catalogue.
 class _StreamRow extends StatelessWidget {
-  const _StreamRow({required this.item, required this.onSelect, this.dense = false});
+  const _StreamRow({
+    required this.item,
+    required this.onSelect,
+    this.dense = false,
+    this.autofocus = false,
+  });
 
   final StreamItem item;
   final VoidCallback onSelect;
   final bool dense;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
     return FocusRing(
+      autofocus: autofocus,
       onSelect: onSelect,
       child: Container(
         margin: EdgeInsets.symmetric(vertical: dense ? 1 : 2),
@@ -1910,8 +1927,9 @@ class _DashboardTiles extends StatelessWidget {
           crossAxisSpacing: 12,
           childAspectRatio: narrow ? 2.2 : 1.12,
           children: [
-            for (final (label, icon, tab, blurb) in tiles)
+            for (final (idx, (label, icon, tab, blurb)) in tiles.indexed)
               _SectionTile(
+                autofocus: idx == 0,
                 label: label,
                 icon: icon,
                 blurb: blurb,
@@ -1941,6 +1959,7 @@ class _SectionTile extends StatelessWidget {
     this.items = const [],
     this.count,
     this.loading = false,
+    this.autofocus = false,
   });
 
   final String label;
@@ -1950,11 +1969,13 @@ class _SectionTile extends StatelessWidget {
   final List<StreamItem> items;
   final int? count;
   final bool loading;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
     return FocusRing(
       borderRadius: 18,
+      autofocus: autofocus,
       onSelect: onTap,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -2605,14 +2626,22 @@ class _GuideShellState extends State<_GuideShell> {
     final rows = <Widget>[];
     final cats = appState.categories;
     final all = appState.visibleItems;
+    // The very first row takes focus on open, so a remote has somewhere to go.
+    var firstRow = true;
+    Widget rowFor(StreamItem i) {
+      final w = _row(i, autofocus: firstRow);
+      firstRow = false;
+      return w;
+    }
+
     if (cats.isEmpty) {
-      rows.addAll(all.map(_row));
+      rows.addAll(all.map(rowFor));
     } else {
       for (final c in cats) {
         final inCat = all.where((i) => i.categoryId == c.id).toList();
         if (inCat.isEmpty) continue;
         rows.add(_GuideHeader(label: c.name, count: inCat.length));
-        rows.addAll(inCat.take(120).map(_row));
+        rows.addAll(inCat.take(120).map(rowFor));
       }
     }
     return Scaffold(
@@ -2651,8 +2680,9 @@ class _GuideShellState extends State<_GuideShell> {
     );
   }
 
-  Widget _row(StreamItem item) => _GuideRow(
+  Widget _row(StreamItem item, {bool autofocus = false}) => _GuideRow(
         item: item,
+        autofocus: autofocus,
         epg: appState.epgCache[item.id],
         loading: appState.epgPending.contains(item.id),
         onFocus: () => _loadEpg(item),
@@ -2705,6 +2735,7 @@ class _GuideRow extends StatelessWidget {
     required this.onFocus,
     required this.loading,
     this.epg,
+    this.autofocus = false,
   });
 
   final StreamItem item;
@@ -2712,12 +2743,14 @@ class _GuideRow extends StatelessWidget {
   final VoidCallback onFocus;
   final bool loading;
   final List<EpgEntry>? epg;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
     final now = epg != null && epg!.isNotEmpty ? epg!.first : null;
     return FocusRing(
       borderRadius: 10,
+      autofocus: autofocus,
       onSelect: onSelect,
       onFocusChange: (f) {
         if (f) onFocus();

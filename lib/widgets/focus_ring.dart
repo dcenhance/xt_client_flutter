@@ -39,7 +39,11 @@ class _FocusRingState extends State<FocusRing> {
       autofocus: widget.autofocus,
       enabled: widget.onSelect != null,
       mouseCursor: SystemMouseCursors.click,
-      onShowFocusHighlight: (v) {
+      // Drive the ring from *focus*, not from Flutter's "highlight mode":
+      // a D-pad or remote that reports no highlight mode would otherwise move
+      // an invisible cursor, and on-focus work (the Guide's now/next) would
+      // never run.
+      onFocusChange: (v) {
         setState(() => _focused = v);
         widget.onFocusChange?.call(v);
       },
