@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Orion Player mark only (no tile), for Android adaptive icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="ring" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFF0C9"/>
+      <stop offset="0.35" stop-color="#EFCB80"/>
+      <stop offset="0.7" stop-color="#C89A47"/>
+      <stop offset="1" stop-color="#8A6224"/>
+    </linearGradient>
+    <linearGradient id="play" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#FFEFC4"/>
+      <stop offset="0.5" stop-color="#F2CE84"/>
+      <stop offset="1" stop-color="#B8862F"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="268" r="150" fill="none" stroke="url(#ring)" stroke-width="26"
+          stroke-linecap="round" stroke-dasharray="700 260" stroke-dashoffset="-215"/>
+  <path d="M215 196 L215 340 L343 268 Z" fill="url(#play)"/>
+  <g fill="url(#ring)">
+    <circle cx="176" cy="163" r="15"/>
+    <circle cx="256" cy="140" r="19"/>
+    <circle cx="336" cy="163" r="13"/>
+  </g>
+</svg>

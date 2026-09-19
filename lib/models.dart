@@ -168,6 +168,15 @@ class EpgEntry {
   final DateTime? end;
   EpgEntry({required this.title, required this.description, this.start, this.end});
 
+  /// "18:00–19:00", or an empty string when the panel sent no timestamps.
+  String get timeLabel {
+    String two(int v) => v.toString().padLeft(2, '0');
+    if (start == null) return '';
+    final from = '${two(start!.hour)}:${two(start!.minute)}';
+    if (end == null) return from;
+    return '$from–${two(end!.hour)}:${two(end!.minute)}';
+  }
+
   factory EpgEntry.fromJson(Map<String, dynamic> j) => EpgEntry(
         title: _b64(j['title']),
         description: _b64(j['description']),

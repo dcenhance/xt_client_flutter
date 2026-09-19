@@ -17,7 +17,7 @@ enum Density { comfortable, compact }
 
 /// Whole-app layout, pickable in Settings. Not tied to the platform: a desktop
 /// can run the Dashboard shell and a phone the Sidebar one.
-enum LayoutStyle { classic, sidebar, showcase, dashboard }
+enum LayoutStyle { classic, sidebar, showcase, dashboard, cinema, masterDetail, guide }
 
 /// A login the app keeps between sessions, so the user does not have to retype
 /// it and a panel can be re-picked later without asking for credentials again.
@@ -104,6 +104,10 @@ class AppState extends ChangeNotifier {
   List<String> workingServers = const [];
 
   List<SavedLogin> logins = [];
+
+  /// now/next, fetched on demand (the Guide layout and the player ask for it).
+  final Map<String, List<EpgEntry>> epgCache = {};
+  final Set<String> epgPending = {};
 
   ContentTab tab = ContentTab.live;
   List<Category> categories = const [];
@@ -456,6 +460,24 @@ class AppState extends ChangeNotifier {
   /// Continue an account the app has kept.
   Future<bool> resumeLogin(SavedLogin l) =>
       signIn(username: l.username, password: l.password, server: l.server);
+
+  /// Loads now/next for one channel, once. Live items only — VOD has no EPG,
+  /// and asking a panel for it is a wasted round trip per row.
+  Future<void> loadEpgFor(StreamItem item) async {
+    if (item.kind != 'live') return;
+    if (epgCache.containsKey(item.id) || epgPending.contains(item.id)) return;
+    final c = client;
+    if (c == null) return;
+    epgPending.add(item.id);
+    try {
+      epgCache[item.id] = await c.shortEpg(item.id, limit: 2);
+    } catch (_) {
+      epgCache[item.id] = const [];
+    } finally {
+      epgPending.remove(item.id);
+    }
+    notifyListeners();
+  }
 
   void setCredentials({String? server, String? username, String? password, bool? remember}) {
     if (server != null) this.server = server;

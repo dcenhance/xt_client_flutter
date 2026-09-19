@@ -37,6 +37,11 @@ so the three values your provider gives you (server, username, password) are all
 
 ## What it does
 
+The app is **Orion Player**: a gold play glyph inside a broken orbital ring, with Orion's three
+belt stars riding the arc — a few large shapes on a deep-black squircle so it still reads at 48 px.
+The same mark ships as the Android launcher icon (including an adaptive icon), the Windows `.ico`,
+the macOS/iOS app-icon sets, the KDE menu entry and the in-app header.
+
 ### One app, two interface styles
 
 | Platform | Layout |
@@ -49,7 +54,7 @@ Fire TV too.
 
 ### Layouts
 
-Four whole-app layouts ship in the app; **Account → Layout** switches between them live, on any
+Seven whole-app layouts ship in the app; **Account → Layout** switches between them live, on any
 platform (nothing is tied to the OS), and the choice is remembered:
 
 | Layout | What it is |
@@ -58,6 +63,9 @@ platform (nothing is tied to the OS), and the choice is remembered:
 | **Sidebar** | permanent vertical navigation (icon-only rail on narrow windows) |
 | **Showcase** | big hero banner with Play, then one poster rail per category |
 | **Dashboard** | large section tiles you step into — the one to use with a TV remote |
+| **Cinema** | full-bleed backdrop, title block with Play, shelf of what is playing |
+| **Master-detail** | category column on the left, content grid on the right |
+| **Guide** | dense channel rows grouped by category, with now/next fetched for the row you focus |
 
 Each tile in the picker draws a miniature wireframe of the shell it applies.
 

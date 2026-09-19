@@ -15,6 +15,9 @@ class LayoutPicker extends StatelessWidget {
     LayoutStyle.sidebar: ('Sidebar', 'Permanent vertical navigation, phone and desktop alike'),
     LayoutStyle.showcase: ('Showcase', 'Big hero banner over per-category poster rails'),
     LayoutStyle.dashboard: ('Dashboard', 'Large section tiles you enter — made for a TV remote'),
+    LayoutStyle.cinema: ('Cinema', 'Full-bleed backdrop with a shelf of what is playing'),
+    LayoutStyle.masterDetail: ('Master-detail', 'Category column on the left, content on the right'),
+    LayoutStyle.guide: ('Guide', 'Dense channel rows grouped by category, with now/next'),
   };
 
   @override
@@ -207,6 +210,95 @@ class _Wireframe extends StatelessWidget {
             row([tile(), tile(), tile(), tile()]),
             const SizedBox(height: 4),
             row([tile(), tile(), tile(), tile()]),
+          ],
+        );
+      case LayoutStyle.cinema:
+        return Column(
+          children: [
+            Container(
+              height: 46,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppTheme.card, AppTheme.accent.withValues(alpha: 0.25)],
+                ),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(children: [bar(w: 26, accent: true), const SizedBox(width: 4), bar(w: 18)]),
+            const SizedBox(height: 4),
+            row([tile(), tile(), tile(), tile()]),
+          ],
+        );
+      case LayoutStyle.masterDetail:
+        return Row(
+          children: [
+            Container(
+              width: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.card,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  bar(w: 30, accent: true),
+                  const SizedBox(height: 3),
+                  bar(w: 26),
+                  const SizedBox(height: 3),
+                  bar(w: 22),
+                  const SizedBox(height: 3),
+                  bar(w: 28),
+                  const SizedBox(height: 3),
+                  bar(w: 18),
+                ],
+              ),
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Column(
+                children: [
+                  row([tile(), tile()]),
+                  const SizedBox(height: 4),
+                  row([tile(), tile()]),
+                  const SizedBox(height: 4),
+                  row([tile(), tile()]),
+                ],
+              ),
+            ),
+          ],
+        );
+      case LayoutStyle.guide:
+        return Column(
+          children: [
+            bar(w: 30, accent: true),
+            const SizedBox(height: 4),
+            for (int i = 0; i < 5; i++) ...[
+              Container(
+                height: 9,
+                decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 3),
+                    bar(w: 8, h: 4),
+                    const SizedBox(width: 3),
+                    bar(w: 22, h: 4),
+                    const Spacer(),
+                    bar(w: 14, h: 4, accent: true),
+                    const SizedBox(width: 3),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 2),
+            ],
           ],
         );
       case LayoutStyle.dashboard:
