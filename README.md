@@ -209,16 +209,27 @@ the password).
 
 ## Troubleshooting login failures
 
-The login screen distinguishes the cases the phone apps blur together:
+The login screen distinguishes the cases the phone apps blur together — and can check them for you:
+
+* **Diagnose this server (DNS + ports)** — resolves the hostname, flags placeholder addresses
+  (`1.1.1.1`, `1.0.0.1`, TEST-NET ranges: a DNS record pointing nowhere), then probes the port you
+  typed plus the usual Xtream ports (8080, 80, 8880, 8000, 25461, 2095, 9000) with your credentials.
+  It reports per port whether anything answered, whether it answered as an Xtream panel and whether
+  the login was accepted, and ends with one verdict. If a probe does authenticate, it offers
+  **Use this server**.
+* **Test a list of servers** — paste one address per line (from your provider, a reseller list, an
+  old invoice); the same username/password is tried against each and you get a tick or a cross with
+  the expiry date. A working host gets a **Use** button that adopts it and logs in. Blank lines and
+  `#` comments are ignored; nothing is sent anywhere except those hosts.
 
 | Message | Meaning | Fix |
 |---|---|---|
-| `HTTP 403 ... error code 1034` (Cloudflare) | the server hostname resolves to a placeholder, e.g. an `A → 1.1.1.1` proxied record | correct the DNS record; no client can log in |
+| `Cloudflare could not reach the origin … error code 1034` | the hostname's DNS record points at a placeholder (`1.1.1.1`), so no request reaches a server at all | ask the provider for the current panel host, or paste their host list into **Test a list of servers** |
 | `HTTP 401/403/511/512` | panel answered but refuses this IP or these credentials | try another network/VPN, or ask the provider to whitelist you |
-| `Cannot reach ...` | nothing listening / wrong port / firewall | check host and port |
+| `Cannot reach …` | nothing listening / wrong port / firewall | check host and port, or run **Diagnose this server** |
 | `Non-JSON reply` | something answered that is not an Xtream panel | check the address ends in the panel port |
-| `Panel refused username/password` | wrong credentials or too many connections | verify with the provider |
-| `Account expired on ...` | subscription lapsed | renew |
+| `Panel refused these credentials (panel said: …)` | wrong credentials, expired subscription, or too many connections | verify with the provider |
+| `Account expired on …` | subscription lapsed | renew |
 
 ## Project layout
 
@@ -227,6 +238,7 @@ lib/
   main.dart                 app entry, global AppState, MaterialApp
   models.dart               AccountInfo, Category, StreamItem, EpgEntry
   xtream_client.dart        the API, error taxonomy, stream/playlist/EPG URL builders
+  diagnostics.dart          DNS/placeholder detection, port probing, multi-server test
   store.dart                login, persistence, per-tab content cache, search
   theme.dart                very dark flat theme (Breeze-blue accent)
   widgets/focus_ring.dart   D-pad focus ring, key-hint bar, app-level Esc/Back handling
