@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../diagnostics.dart';
 import '../main.dart';
+import '../panels.dart';
 import '../theme.dart';
+import '../widgets/focus_ring.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -247,15 +249,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ],
                     const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => setState(() => _showList = !_showList),
-                        icon: Icon(_showList ? Icons.expand_less : Icons.playlist_add_check,
-                            size: 16),
-                        label: const Text('Test a list of servers',
-                            style: TextStyle(fontSize: 13)),
-                      ),
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _panelPicker(),
+                        TextButton.icon(
+                          onPressed: () => setState(() {
+                            _showList = !_showList;
+                            if (_showList && _serversList.text.trim().isEmpty) {
+                              _serversList.text = presetUrlsAsText();
+                            }
+                          }),
+                          icon: Icon(
+                              _showList ? Icons.expand_less : Icons.playlist_add_check,
+                              size: 16),
+                          label: const Text('Test a list of servers',
+                              style: TextStyle(fontSize: 13)),
+                        ),
+                      ],
                     ),
                     if (_showList) _serversListSection(),
                     const SizedBox(height: 10),
@@ -271,6 +283,99 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _panelPicker() {
+    return OutlinedButton.icon(
+      onPressed: () async {
+        final chosen = await showDialog<PanelPreset>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppTheme.surface,
+            title: const Text('Select panel',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, letterSpacing: 2)),
+            contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+            content: SizedBox(
+              width: 380,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final p in kPanelPresets)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: FocusRing(
+                        borderRadius: 4,
+                        onSelect: () => Navigator.pop(context, p),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                          decoration: BoxDecoration(
+                            color: AppTheme.card,
+                            border: Border.all(
+                              color: _server.text.trim() == p.url
+                                  ? AppTheme.accent
+                                  : AppTheme.border,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(p.name,
+                                        style: const TextStyle(
+                                            fontSize: 13, color: AppTheme.text)),
+                                    const SizedBox(height: 2),
+                                    Text(p.url,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontFamily: 'monospace',
+                                            color: AppTheme.muted)),
+                                  ],
+                                ),
+                              ),
+                              if (_server.text.trim() == p.url)
+                                const Icon(Icons.check_circle,
+                                    size: 18, color: AppTheme.accent),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 14, 4, 0),
+                    child: Text(
+                      'These are the panels that ship with the Spectre build this subscription came '
+                      'from. They only answer to their own customers\' networks, so some will refuse '
+                      'from here — use "Test a list of servers" to see which one accepts your login.',
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted, height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        );
+        if (chosen != null) {
+          setState(() {
+            _server.text = chosen.url;
+            _serversList.text = presetUrlsAsText();
+            _showList = true;
+          });
+          appState.setCredentials(server: chosen.url);
+        }
+      },
+      icon: const Icon(Icons.grid_view, size: 16),
+      label: const Text('Select panel', style: TextStyle(fontSize: 13)),
     );
   }
 

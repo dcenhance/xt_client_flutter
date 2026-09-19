@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xtream_player/diagnostics.dart';
-import 'package:xtream_player/xtream_client.dart' show placeholderAddresses;
+import 'package:xtream_player/panels.dart';
+import 'package:xtream_player/xtream_client.dart'
+    show placeholderAddresses, XtreamClient;
 
 /// Diagnostics must not lie: a placeholder DNS record, a live panel that refuses
 /// the login, and a working panel all have to produce different verdicts.
@@ -24,6 +26,8 @@ Future<HttpServer> panel({required String body, int status = 200, bool respond =
 }
 
 void main() {
+  _presets();
+
   test('placeholder addresses are detected', () {
     expect(placeholderAddresses.contains('1.1.1.1'), isTrue);
     expect(placeholderAddresses.contains('198.51.100.1'), isTrue);
@@ -135,4 +139,19 @@ void main() {
     expect(result.addresses.join(' '), contains('lookup failed'));
     expect(result.verdict, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 120)));
+}
+// ---- panel presets -------------------------------------------------------
+
+void _presets() {
+  test('the Spectre panel list is reproduced with usable URLs', () {
+    expect(kPanelPresets, hasLength(5));
+    for (final p in kPanelPresets) {
+      expect(p.name, isNotEmpty);
+      expect(Uri.parse(XtreamClient.normaliseServer(p.url)).host, isNotEmpty);
+      expect(p.url, startsWith('http'));
+      expect(p.url, contains(':8080'));
+    }
+    expect(presetUrlsAsText().split('\n'), hasLength(5));
+    expect(kPanelPresets.first.name, 'EUROPE 1');
+  });
 }

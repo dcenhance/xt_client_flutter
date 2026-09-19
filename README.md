@@ -207,6 +207,31 @@ for M3U + XMLTV) or any other Xtream-compatible player.
 authenticates, and writes a ready-to-play `.m3u` (created with mode 600, because it embeds
 the password).
 
+## Panel picker (parity with the Spectre/XCIPTV build)
+
+The app these credentials came from does **not** log in to an address you type: it ships a
+`SELECT PANEL` list and picks the server from it. This client reproduces that list under
+**Select panel** (EUROPE 1 · EUROPE 2 · TÜRKİYE PANEL 1 · TÜRKİYE PANEL 2 · TÜRKİYE İZNE GELENLER),
+fills the server field from your choice, and pre-fills **Test a list of servers** with all five so
+one tap tells you which one answers from your current network.
+
+The list is in `lib/panels.dart` — plain data, edit or empty it as you like.
+
+**Important:** those panels only answer their own customers' networks. Probed from a line they do
+not know, every one of them refuses before credentials are even checked:
+
+```
+http://e-de.dynu.net:8080      HTTP 512
+http://3teamall.xyz:8080       HTTP 512
+http://maxspectre.com:8080     connection closed before full header
+http://kngkral38.com:8080      connection closed before full header
+http://e-tr.dynuddns.com:8080  HTTP 512
+```
+
+So "it works in the phone app but not on the PC" is usually network gating, not the client: run the
+test from the same network the phone app uses. A panel that *does* answer reports a tick with the
+account's expiry and connection count, and **Use** switches to it.
+
 ## Troubleshooting login failures
 
 The login screen distinguishes the cases the phone apps blur together — and can check them for you:
