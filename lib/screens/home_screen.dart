@@ -1442,7 +1442,10 @@ class _ShowcaseShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = appState.items;
-    final hero = items.isNotEmpty ? items.first : null;
+    // Prefer an item that has artwork: a banner with a logo beats a bare gradient.
+    final hero = items.isEmpty
+        ? null
+        : items.firstWhere((i) => i.icon != null, orElse: () => items.first);
     final w = MediaQuery.sizeOf(context).width;
     final showWordmark = w >= 1040;
     final showSearchField = w >= 900;
@@ -1568,6 +1571,16 @@ class _NavPills extends StatelessWidget {
 class _HeroBanner extends StatelessWidget {
   const _HeroBanner({required this.item, required this.onPlay, required this.onBrowse});
 
+  Widget _heroGlyph(StreamItem item) => Center(
+        child: Icon(
+          item.kind == 'series'
+              ? Icons.video_library_outlined
+              : (item.kind == 'live' ? Icons.sensors : Icons.movie_outlined),
+          size: 104,
+          color: AppTheme.accent.withValues(alpha: 0.5),
+        ),
+      );
+
   final StreamItem item;
   final VoidCallback onPlay;
   final VoidCallback onBrowse;
@@ -1585,33 +1598,36 @@ class _HeroBanner extends StatelessWidget {
               decoration: BoxDecoration(gradient: AppTheme.headerGradient()),
             ),
             // Channel logos are small and wide, posters are tall: contained on
-            // the right with a glow reads better than a blown-up crop.
-            if (item.icon != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: FractionallySizedBox(
-                  widthFactor: 0.52,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accent.withValues(alpha: 0.16),
-                            blurRadius: 40,
-                            spreadRadius: 6,
-                          ),
-                        ],
-                      ),
-                      child: Image.network(
-                        item.icon!,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
+            // the right with a glow reads better than a blown-up crop. When the
+            // panel has no artwork (or it 404s) a tinted glyph keeps the banner
+            // looking designed instead of empty.
+            Align(
+              alignment: Alignment.centerRight,
+              child: FractionallySizedBox(
+                widthFactor: 0.5,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.accent.withValues(alpha: 0.18),
+                          blurRadius: 44,
+                          spreadRadius: 8,
+                        ),
+                      ],
                     ),
+                    child: item.icon == null
+                        ? _heroGlyph(item)
+                        : Image.network(
+                            item.icon!,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => _heroGlyph(item),
+                          ),
                   ),
                 ),
               ),
+            ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
