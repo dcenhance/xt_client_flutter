@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../diagnostics.dart';
 import '../main.dart';
 import '../theme.dart';
 
@@ -15,6 +16,25 @@ class _LoginScreenState extends State<LoginScreen> {
   late final TextEditingController _user;
   late final TextEditingController _pass;
   bool _obscure = true;
+  bool _diagBusy = false;
+  DiagnosticsResult? _diag;
+
+  Future<void> _runDiagnostics() async {
+    setState(() {
+      _diagBusy = true;
+      _diag = null;
+    });
+    final result = await Diagnostics.run(
+      server: _server.text,
+      username: _user.text.trim(),
+      password: _pass.text,
+    );
+    if (!mounted) return;
+    setState(() {
+      _diag = result;
+      _diagBusy = false;
+    });
+  }
 
   @override
   void initState() {
@@ -163,6 +183,45 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (appState.error != null) ...[
                       const SizedBox(height: 18),
                       _ErrorBox(message: appState.error!, hint: appState.errorHint),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _diagBusy ? null : _runDiagnostics,
+                              icon: _diagBusy
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.health_and_safety_outlined, size: 16),
+                              label: Text(_diagBusy
+                                  ? 'Checking host…'
+                                  : 'Diagnose this server (DNS + ports)'),
+                            ),
+                          ),
+                          if (_diag != null) ...[
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Clear diagnostics',
+                              icon: const Icon(Icons.close, size: 16),
+                              onPressed: () => setState(() => _diag = null),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (_diag != null) ...[
+                        const SizedBox(height: 12),
+                        _DiagnosticsBox(
+                          result: _diag!,
+                          onUseServer: (server) {
+                            _server.text = server;
+                            appState.setCredentials(server: server);
+                            setState(() => _diag = null);
+                            _submit();
+                          },
+                        ),
+                      ],
                     ],
                     const SizedBox(height: 22),
                     const Text(
@@ -200,6 +259,47 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiagnosticsBox extends StatelessWidget {
+  const _DiagnosticsBox({required this.result, required this.onUseServer});
+
+  final DiagnosticsResult result;
+  final ValueChanged<String> onUseServer;
+
+  @override
+  Widget build(BuildContext context) {
+    final working = result.workingHost;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        border: Border.all(color: working != null ? AppTheme.ok : AppTheme.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Server diagnostics',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          SelectableText(
+            result.report.join('\n'),
+            style: const TextStyle(
+                fontSize: 11.5, color: AppTheme.muted, fontFamily: 'monospace', height: 1.5),
+          ),
+          if (working != null) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => onUseServer(working),
+              icon: const Icon(Icons.check, size: 16),
+              label: Text('Use this server: $working'),
+            ),
+          ],
         ],
       ),
     );
