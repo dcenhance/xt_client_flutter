@@ -73,6 +73,32 @@ The app only ever sends them to that server. They are stored locally
 (`shared_preferences`) when *Remember me* is on, and are embedded in the
 generated stream/playlist URLs — treat the M3U link as a secret.
 
+## Download / release formats
+
+Every tagged release (`v*`) carries all of these as assets; the CI jobs build them on every push.
+
+| Platform | Format | Notes |
+|---|---|---|
+| Linux | `.AppImage` | single file, `chmod +x` and run; bundles libmpv, no install needed |
+| Linux | `.deb` | Debian/Ubuntu/Mint — `sudo apt install ./xtream-player_*.deb` |
+| Linux | `.rpm` | Fedora/Nobara/openSUSE — `sudo dnf install ./xtream-player-*.rpm` |
+| Linux | `.tar.gz` / `.tar.xz` | portable bundle, run `xtream_player` from the extracted folder |
+| Windows | `-setup.exe` | Inno Setup installer: Start-Menu/desktop entry, uninstaller |
+| Windows | `-portable.zip` | unpack anywhere and run `xtream_player.exe` |
+| Android | `universal.apk` | one APK for every device (also the sideload default) |
+| Android | `arm64-v8a / armeabi-v7a / x86_64 .apk` | smaller per-architecture builds |
+| Android | `.aab` | Play Store upload bundle |
+| macOS | `.dmg` | drag-to-Applications installer |
+| macOS | `.app.zip` | portable app bundle |
+| iOS | `-unsigned.app.zip` | simulator/QA use; installing on a device needs a signing identity |
+
+Local builds: `tool/package-linux.sh` produces every Linux format in `build/dist`;
+`tool/windows-installer.iss` is the Inno Setup script used by CI.
+
+> Linux note: the Flutter Linux build links the **system** `libmpv.so.2`
+> (`mpv-libs` on Fedora, `libmpv2` on Debian/Ubuntu) — the `.deb`/`.rpm` declare that dependency,
+> and the AppImage bundles its own copy so it runs anywhere.
+
 ## Build and run
 
 Requirements per platform are Flutter's own; nothing extra.

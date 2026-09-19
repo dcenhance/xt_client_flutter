@@ -33,6 +33,11 @@ class XtreamException implements Exception {
         return 'Either the address is not a valid URL (expected http://host:8080) or something '
             'answered that is not an Xtream panel (no JSON).';
       case XtreamErrorKind.http:
+        if ((body ?? '').contains('1034')) {
+          return "Cloudflare error 1034 means the domain's DNS record points at a placeholder "
+              'address (e.g. 1.1.1.1), so no request ever reaches a server. No client can log in '
+              'until the provider fixes that record — the credentials are not the problem.';
+        }
         return 'The panel answered with HTTP $statusCode but not with playlist JSON. '
             'Many panels use 401/403/511/512 for "not allowed from this IP" or "bad credentials".';
       case XtreamErrorKind.rejected:
@@ -120,6 +125,16 @@ class XtreamClient {
     final body = res.body.trim();
     final looksJson = body.startsWith('{') || body.startsWith('[');
     if (!looksJson) {
+      final looksCloudflareDns =
+          body.contains('error code: 1034') || body.contains('Error 1034');
+      if (looksCloudflareDns) {
+        throw XtreamException(
+          XtreamErrorKind.http,
+          "Cloudflare could not reach the origin ($server): error code 1034",
+          statusCode: res.statusCode,
+          body: body,
+        );
+      }
       if (res.statusCode >= 400) {
         throw XtreamException(
           XtreamErrorKind.http,

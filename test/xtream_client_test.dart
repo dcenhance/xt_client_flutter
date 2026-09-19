@@ -138,6 +138,24 @@ void main() {
     );
   });
 
+  test('Cloudflare 1034 is called out as dead DNS, not bad credentials', () async {
+    final server = await startPanel(body: 'error code: 1034', status: 403);
+    final client = XtreamClient(
+      server: 'http://127.0.0.1:${server.port}',
+      username: 'x',
+      password: 'y',
+    );
+    try {
+      await client.login();
+      fail('expected XtreamException');
+    } on XtreamException catch (e) {
+      expect(e.kind, XtreamErrorKind.http);
+      expect(e.message, contains('1034'));
+      expect(e.hint, contains('DNS record points at a placeholder'));
+    }
+    await server.close(force: true);
+  });
+
   test('stream URL shapes follow the Xtream specification', () {
     final client = XtreamClient(
       server: 'http://panel:8080',

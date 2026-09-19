@@ -33,15 +33,29 @@ jobs:
       - name: System dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libstdc++-12-dev patchelf rpm
+          sudo apt-get install -y libmpv2 || sudo apt-get install -y libmpv1
       - run: flutter pub get
       - run: flutter build linux --release
-      - name: Package
-        run: tar -czf xtream-player-linux-x64.tar.gz -C build/linux/x64/release bundle
+      - name: Package every Linux format
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/tools
+        run: |
+          mkdir -p "$TOOLS_DIR"
+          curl -sSL -o "$TOOLS_DIR/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$TOOLS_DIR/appimagetool"
+          ./tool/package-linux.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: xtream-player-linux-x64
-          path: xtream-player-linux-x64.tar.gz
+          name: linux
+          path: |
+            build/dist/*.tar.gz
+            build/dist/*.tar.xz
+            build/dist/*.deb
+            build/dist/*.rpm
+            build/dist/*.AppImage
 
   windows:
     needs: analyze-and-test
@@ -54,13 +68,24 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build windows --release
-      - name: Package
+      - name: Portable zip
         shell: pwsh
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath xtream-player-windows-x64.zip
+        run: |
+          New-Item -ItemType Directory -Force -Path build\dist | Out-Null
+          Compress-Archive -Path build\windows\x64\runner\Release\* `
+            -DestinationPath build\dist\xtream-player-windows-x64-portable.zip
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" tool\windows-installer.iss
       - uses: actions/upload-artifact@v4
         with:
-          name: xtream-player-windows-x64
-          path: xtream-player-windows-x64.zip
+          name: windows
+          path: |
+            build/dist/*.zip
+            build/dist/*setup.exe
 
   android:
     needs: analyze-and-test
@@ -76,11 +101,26 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Universal APK
+        run: flutter build apk --release
+      - name: Per-ABI APKs
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64,android-x64
+      - name: Play Store bundle
+        run: flutter build appbundle --release
+      - name: Collect artifacts
+        run: |
+          mkdir -p build/dist
+          cp build/app/outputs/flutter-apk/app-release.apk build/dist/xtream-player-universal.apk
+          for f in build/app/outputs/flutter-apk/app-*-release.apk; do
+            abi=$(basename "$f" | sed 's/app-\(.*\)-release.apk/\1/')
+            cp "$f" "build/dist/xtream-player-$abi.apk"
+          done
+          cp build/app/outputs/bundle/release/app-release.aab build/dist/xtream-player.aab
+          ls -lh build/dist
       - uses: actions/upload-artifact@v4
         with:
-          name: xtream-player-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: android
+          path: build/dist/*
 
   apple:
     needs: analyze-and-test
@@ -96,16 +136,23 @@ jobs:
         run: flutter build macos --release
       - name: iOS app (unsigned)
         run: flutter build ios --release --no-codesign
-      - name: Package
+      - name: Package zip and dmg
         run: |
-          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/xtream_player.app xtream-player-macos.zip
-          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app xtream-player-ios-unsigned.zip
+          mkdir -p build/dist
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/macos/Build/Products/Release/xtream_player.app \
+            build/dist/xtream-player-macos-x64.app.zip
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/ios/iphoneos/Runner.app \
+            build/dist/xtream-player-ios-unsigned.app.zip
+          mkdir -p build/dmg && cp -R build/macos/Build/Products/Release/xtream_player.app build/dmg/
+          ln -s /Applications build/dmg/Applications
+          hdiutil create -volname "Xtream Player" -srcfolder build/dmg -ov -format UDZO \
+            build/dist/xtream-player-macos-x64.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: xtream-player-apple
-          path: |
-            xtream-player-macos.zip
-            xtream-player-ios-unsigned.zip
+          name: apple
+          path: build/dist/*
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -119,7 +166,5 @@ jobs:
           path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/xtream-player-linux-x64/xtream-player-linux-x64.tar.gz
-            artifacts/xtream-player-windows-x64/xtream-player-windows-x64.zip
-            artifacts/xtream-player-android-apk/app-release.apk
+          generate_release_notes: true
+          files: artifacts/**/*
