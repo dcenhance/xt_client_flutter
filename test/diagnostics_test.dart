@@ -93,6 +93,37 @@ void main() {
     await server.close(force: true);
   }, timeout: const Timeout(Duration(seconds: 60)));
 
+  test('testServers reports which host accepts the login', () async {
+    final good = await panel(
+      body: jsonEncode({
+        'user_info': {
+          'auth': 1,
+          'exp_date': '1790000000',
+          'max_connections': '1',
+          'active_cons': '0',
+        },
+      }),
+    );
+    final bad = await panel(body: jsonEncode({'user_info': {'auth': 0}}));
+    final results = await testServers(
+      servers: [
+        'http://127.0.0.1:${good.port}',
+        'http://127.0.0.1:${bad.port}',
+        '# a comment line',
+        '',
+      ],
+      username: 'u',
+      password: 'p',
+      timeout: const Duration(seconds: 2),
+    );
+    expect(results.length, 2, reason: 'comments and blanks are skipped');
+    expect(results.first.ok, isTrue);
+    expect(results.first.note, contains('login ok'));
+    expect(results.last.ok, isFalse);
+    await good.close(force: true);
+    await bad.close(force: true);
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
   test('non-resolving host produces a clear verdict, not an exception', () async {
     final result = await Diagnostics.run(
       server: 'http://this-host-does-not-exist.invalid:8080',

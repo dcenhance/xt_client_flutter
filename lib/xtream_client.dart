@@ -55,13 +55,18 @@ class XtreamException implements Exception {
 }
 
 class XtreamClient {
-  XtreamClient({required this.server, required this.username, required this.password});
+  XtreamClient({
+    required this.server,
+    required this.username,
+    required this.password,
+    Duration? timeout,
+  }) : _timeout = timeout ?? const Duration(seconds: 20);
 
   final String server; // normalised, e.g. http://host:8080
   final String username;
   final String password;
 
-  static const _timeout = Duration(seconds: 20);
+  final Duration _timeout;
 
   /// Accepts "host:8080", "http://host:8080/", "https://host" and returns a clean base URL.
   static String normaliseServer(String raw) {
@@ -174,7 +179,9 @@ class XtreamClient {
       }
       throw XtreamException(
         XtreamErrorKind.rejected,
-        info.message ?? 'Panel refused username/password',
+        info.message != null && info.message!.isNotEmpty
+            ? 'Panel refused these credentials (panel said: "${info.message}")'
+            : 'Panel refused these credentials',
       );
     }
     return info;

@@ -277,3 +277,51 @@ class Diagnostics {
 extension _Take on String {
   String take(int n) => length <= n ? this : '${substring(0, n)}…';
 }
+
+/// One line of "test a list of servers" output.
+class CandidateResult {
+  final String server;
+  final bool ok;
+  final String note;
+
+  CandidateResult({required this.server, required this.ok, required this.note});
+}
+
+/// Tries the same credentials against several hosts, for the case where the
+/// address in hand is dead and the provider gave (or gives) more than one.
+Future<List<CandidateResult>> testServers({
+  required List<String> servers,
+  required String username,
+  required String password,
+  Duration timeout = const Duration(seconds: 12),
+}) async {
+  final cleaned = servers
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty && !s.startsWith('#'))
+      .toList();
+  final results = <CandidateResult>[];
+  for (final raw in cleaned) {
+    final client = XtreamClient(
+      server: XtreamClient.normaliseServer(raw),
+      username: username,
+      password: password,
+      timeout: timeout,
+    );
+    try {
+      final info = await client.login();
+      results.add(CandidateResult(
+        server: client.server,
+        ok: true,
+        note: info.expired
+            ? 'login ok but EXPIRED ${info.expiryLabel}'
+            : 'login ok · expires ${info.expiryLabel} · '
+                '${info.activeConnections}/${info.maxConnections} conn',
+      ));
+    } on XtreamException catch (e) {
+      results.add(CandidateResult(server: raw, ok: false, note: e.message));
+    } catch (e) {
+      results.add(CandidateResult(server: raw, ok: false, note: '$e'));
+    }
+  }
+  return results;
+}

@@ -17,6 +17,10 @@ class _LoginScreenState extends State<LoginScreen> {
   late final TextEditingController _pass;
   bool _obscure = true;
   bool _diagBusy = false;
+  bool _showList = false;
+  bool _listBusy = false;
+  List<CandidateResult> _listResults = const [];
+  late final TextEditingController _serversList;
   DiagnosticsResult? _diag;
 
   Future<void> _runDiagnostics() async {
@@ -36,10 +40,28 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  Future<void> _testList() async {
+    setState(() {
+      _listBusy = true;
+      _listResults = const [];
+    });
+    final results = await testServers(
+      servers: _serversList.text.split('\n'),
+      username: _user.text.trim(),
+      password: _pass.text,
+    );
+    if (!mounted) return;
+    setState(() {
+      _listResults = results;
+      _listBusy = false;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _server = TextEditingController(text: appState.server);
+    _serversList = TextEditingController(text: appState.server);
     _user = TextEditingController(text: appState.username);
     _pass = TextEditingController(text: appState.password);
   }
@@ -49,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _server.dispose();
     _user.dispose();
     _pass.dispose();
+    _serversList.dispose();
     super.dispose();
   }
 
@@ -223,7 +246,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
                     ],
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _showList = !_showList),
+                        icon: Icon(_showList ? Icons.expand_less : Icons.playlist_add_check,
+                            size: 16),
+                        label: const Text('Test a list of servers',
+                            style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                    if (_showList) _serversListSection(),
+                    const SizedBox(height: 10),
                     const Text(
                       'The credentials you enter are sent only to the server above. '
                       'Nothing is forwarded anywhere else.',
@@ -235,6 +270,107 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _serversListSection() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Try several servers with the same login',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          const Text(
+            'One address per line. Useful when the address you have is dead — the app can tell you '
+            'which of a provider\'s hosts actually accepts your account.',
+            style: TextStyle(fontSize: 11.5, color: AppTheme.muted, height: 1.5),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _serversList,
+            minLines: 3,
+            maxLines: 6,
+            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+            decoration: const InputDecoration(
+              hintText: 'http://host1:8080\nhttp://host2:8080\nhttps://host3',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: _listBusy ? null : _testList,
+                icon: _listBusy
+                    ? const SizedBox(
+                        width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.play_arrow, size: 16),
+                label: Text(_listBusy ? 'Testing…' : 'Test list'),
+              ),
+              const SizedBox(width: 10),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    final text = _serversList.text.trim();
+                    final current = _server.text.trim();
+                    if (current.isNotEmpty && !text.contains(current)) {
+                      _serversList.text = text.isEmpty ? current : '$text\n$current';
+                    }
+                  });
+                },
+                child: const Text('Add current server', style: TextStyle(fontSize: 12.5)),
+              ),
+            ],
+          ),
+          if (_listResults.isNotEmpty) ...[
+            const Divider(height: 20),
+            for (final r in _listResults)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(r.ok ? Icons.check_circle : Icons.cancel,
+                        size: 16, color: r.ok ? AppTheme.ok : AppTheme.danger),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(r.server,
+                              style: const TextStyle(
+                                  fontSize: 12, fontFamily: 'monospace', color: AppTheme.text)),
+                          Text(r.note,
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppTheme.muted, height: 1.4)),
+                        ],
+                      ),
+                    ),
+                    if (r.ok)
+                      TextButton(
+                        onPressed: () {
+                          _server.text = r.server;
+                          appState.setCredentials(server: r.server);
+                          setState(() {
+                            _showList = false;
+                            _listResults = const [];
+                          });
+                          _submit();
+                        },
+                        child: const Text('Use', style: TextStyle(fontSize: 12.5)),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ],
       ),
     );
   }
