@@ -39,8 +39,10 @@ so the three values your provider gives you (server, username, password) are all
 
 The app is **Orion Player**: a gold play glyph inside a broken orbital ring, with Orion's three
 belt stars riding the arc — a few large shapes on a deep-black squircle so it still reads at 48 px.
-The same mark ships as the Android launcher icon (including an adaptive icon), the Windows `.ico`,
-the macOS/iOS app-icon sets, the KDE menu entry and the in-app header.
+Six marks ship with the app — **Orbit**, **Belt**, **Monogram**, **Prism**, **Aperture** and
+**Stars** — and **Account → App icon** switches between them live; the choice is remembered and
+applies everywhere the mark appears. The default (Orbit) is also the Android launcher icon
+(including an adaptive icon), the Windows `.ico`, the macOS/iOS app-icon sets and the KDE menu entry.
 
 ### One app, two interface styles
 
@@ -51,6 +53,18 @@ the macOS/iOS app-icon sets, the KDE menu entry and the in-app header.
 
 Both are fully D-pad / remote navigable — the mobile shell is what you get on Android TV and
 Fire TV too.
+
+### Motion
+
+Small, deliberate animation rather than decoration: the login backdrop drifts on a slow two-blob
+loop, the mark's glow breathes while idle, the form fades and slides in as a stagger, the Sign In
+button leans in when pressed, and a failed login shakes the error card once. All of it is skipped
+when the platform reports reduced motion (`MediaQuery.disableAnimations`), and the widget tests run
+that path.
+
+The Dashboard's section tiles are not plain gradients: each one shows a mosaic of the first handful
+of entries in that section — posters cropped for movies and series, channel logos (or names, when
+the panel ships no logo) on soft tiles for Live TV — plus a live count.
 
 ### Layouts
 

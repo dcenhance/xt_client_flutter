@@ -76,6 +76,7 @@ class AppState extends ChangeNotifier {
   static const _kLogins = 'logins';
   static const _kWorking = 'working_servers';
   static const _kLayout = 'layout';
+  static const _kMark = 'mark_variant';
 
   SharedPreferences? _prefs;
 
@@ -86,6 +87,7 @@ class AppState extends ChangeNotifier {
   ViewMode viewMode = ViewMode.grid;
   Density density = Density.comfortable;
   String themeId = kGoldenOled.id;
+  String markVariant = 'orbit';
   LayoutStyle layout = LayoutStyle.classic;
 
   /// True when browsing a panel that answers without credentials.
@@ -119,6 +121,51 @@ class AppState extends ChangeNotifier {
   final Map<String, List<StreamItem>> _catCache = {};
 
   XtreamClient? client;
+
+  /// Loads a tab's catalogue into the cache *without* switching to it, so the
+  /// Dashboard can show real artwork for Movies and Series while Live TV is on
+  /// screen. Cheap: two requests per tab, once.
+  Future<void> ensureLoaded(ContentTab t) async {
+    if (_cache.containsKey(t) || _preloading.contains(t)) return;
+    final c = client;
+    if (c == null) return;
+    _preloading.add(t);
+    notifyListeners();
+    try {
+      if (!_categoryCache.containsKey(t)) {
+        _categoryCache[t] = switch (t) {
+          ContentTab.live => await c.liveCategories(),
+          ContentTab.movies => await c.vodCategories(),
+          ContentTab.series => await c.seriesCategories(),
+        };
+      }
+      _cache[t] = switch (t) {
+        ContentTab.live => await c.liveStreams(),
+        ContentTab.movies => await c.vodStreams(),
+        ContentTab.series => await c.series(),
+      };
+    } catch (_) {
+      _cache[t] = _cache[t] ?? const [];
+    } finally {
+      _preloading.remove(t);
+    }
+    notifyListeners();
+  }
+
+  /// Items of a tab with artwork — what the Dashboard tiles show as a mosaic.
+  List<StreamItem> previewFor(ContentTab t, {int take = 4}) {
+    final list = _cache[t];
+    if (list == null) return const [];
+    final withArt = list.where((i) => (i.icon ?? '').isNotEmpty).toList();
+    return withArt.take(take).toList();
+  }
+
+  /// How much is in a tab, or null while it has never been loaded.
+  int? countFor(ContentTab t) => _cache[t]?.length;
+
+  bool loadingFor(ContentTab t) => _preloading.contains(t);
+
+  final Set<ContentTab> _preloading = {};
 
   List<StreamItem> get visibleItems {
     final q = search.trim().toLowerCase();
@@ -161,6 +208,7 @@ class AppState extends ChangeNotifier {
         ? Density.compact
         : Density.comfortable;
     themeId = _prefs!.getString(_kTheme) ?? kGoldenOled.id;
+    markVariant = _prefs!.getString(_kMark) ?? 'orbit';
     layout = LayoutStyle.values.firstWhere(
       (l) => l.name == (_prefs!.getString(_kLayout) ?? 'classic'),
       orElse: () => LayoutStyle.classic,
@@ -223,6 +271,13 @@ class AppState extends ChangeNotifier {
   Future<void> setDensity(Density value) async {
     density = value;
     await _prefs?.setString(_kDensity, value == Density.compact ? 'compact' : 'comfortable');
+    notifyListeners();
+  }
+
+  /// Pick which app mark to show, in-app and (on Android) as the launcher icon.
+  Future<void> setMarkVariant(String id) async {
+    markVariant = id;
+    await _prefs?.setString(_kMark, id);
     notifyListeners();
   }
 

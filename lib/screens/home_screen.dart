@@ -7,6 +7,7 @@ import '../main.dart';
 import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/app_mark.dart';
 import '../widgets/focus_ring.dart';
 import 'player_screen.dart';
 import 'settings_sheet.dart';
@@ -264,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Row(
               children: [
-                const Text('Xtream Player'),
+                const Text('Orion Player'),
                 const SizedBox(width: 16),
                 if (!narrow && a != null) _AccountChip(account: a),
                 if (appState.guest) const _GuestChip(),
@@ -1329,10 +1330,10 @@ class _SidebarShell extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.fromLTRB(compact ? 16 : 18, 20, 16, 18),
                   child: compact
-                      ? Image.asset('assets/orion-mark.png', width: 34, height: 34)
+                      ? AppMark(size: 34)
                       : Row(
                           children: [
-                            Image.asset('assets/orion-mark.png', width: 30, height: 30),
+                            AppMark(size: 30),
                             const SizedBox(width: 10),
                             Text('Orion Player',
                                 style: TextStyle(
@@ -1491,7 +1492,7 @@ class _ShowcaseShell extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 10, 12, 4),
               child: Row(
                 children: [
-                  Image.asset('assets/orion-mark.png', width: 28, height: 28),
+                  AppMark(size: 28),
                   const SizedBox(width: 10),
                   if (showWordmark)
                     Text('Orion Player',
@@ -1796,6 +1797,18 @@ class _DashboardShellState extends State<_DashboardShell> {
   bool _entered = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Fill the caches so each tile can show its own artwork, without switching
+    // the visible tab away from Live TV.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final t in ContentTab.values) {
+        appState.ensureLoaded(t);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
@@ -1812,7 +1825,7 @@ class _DashboardShellState extends State<_DashboardShell> {
                       onPressed: () => setState(() => _entered = false),
                     )
                   else
-                    Image.asset('assets/orion-mark.png', width: 30, height: 30),
+                    AppMark(size: 30),
                   const SizedBox(width: 10),
                   if (!widget.narrow) ...[
                     Text(_entered ? appState.tabLabel : 'Orion Player',
@@ -1895,13 +1908,17 @@ class _DashboardTiles extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: narrow ? 2.4 : 1.15,
+          childAspectRatio: narrow ? 2.2 : 1.12,
           children: [
             for (final (label, icon, tab, blurb) in tiles)
               _SectionTile(
                 label: label,
                 icon: icon,
                 blurb: blurb,
+                // Real artwork from the first few entries of that section.
+                items: appState.previewFor(tab, take: narrow ? 4 : 5),
+                count: appState.countFor(tab),
+                loading: appState.loadingFor(tab),
                 onTap: () => onEnter(tab),
               ),
           ],
@@ -1913,18 +1930,26 @@ class _DashboardTiles extends StatelessWidget {
   }
 }
 
+/// A section tile: the first few posters of that section as a mosaic, darkened
+/// so the label stays readable, with a count once the catalogue is known.
 class _SectionTile extends StatelessWidget {
   const _SectionTile({
     required this.label,
     required this.icon,
     required this.blurb,
     required this.onTap,
+    this.items = const [],
+    this.count,
+    this.loading = false,
   });
 
   final String label;
   final IconData icon;
   final String blurb;
   final VoidCallback onTap;
+  final List<StreamItem> items;
+  final int? count;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -1935,41 +1960,89 @@ class _SectionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(18),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppTheme.accent.withValues(alpha: 0.18),
-                AppTheme.card,
-              ],
-            ),
+            color: AppTheme.card,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppTheme.border),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppTheme.accent.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(13),
+              if (items.isNotEmpty)
+                _ArtMosaic(items: items)
+              else
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppTheme.accent.withValues(alpha: 0.18), AppTheme.card],
+                    ),
+                  ),
                 ),
-                child: Icon(icon, color: AppTheme.accent, size: 22),
+              // Scrim: keeps the text legible over bright posters.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppTheme.background.withValues(alpha: 0.12),
+                      AppTheme.background.withValues(alpha: 0.30),
+                      AppTheme.background.withValues(alpha: 0.90),
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
+                  ),
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w700, color: AppTheme.text)),
-                  const SizedBox(height: 2),
-                  Text(blurb, style: TextStyle(fontSize: 12, color: AppTheme.muted)),
-                ],
+              if (loading)
+                const Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppTheme.background.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4)),
+                      ),
+                      child: Icon(icon, color: AppTheme.accent, size: 21),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(label,
+                            style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.text)),
+                        const SizedBox(height: 2),
+                        Text(
+                          count == null ? blurb : '$count  ·  $blurb',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1977,6 +2050,124 @@ class _SectionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// First few posters as a wall. Wide-and-short tiles get a single row, squarer
+/// ones a 2x2 (or 3x2) grid — either way it looks like content, not a gradient.
+class _ArtMosaic extends StatelessWidget {
+  const _ArtMosaic({required this.items});
+
+  final List<StreamItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final wide = c.maxWidth / c.maxHeight > 2.0;
+        final tiles = items.take(wide ? 4 : 6).toList();
+        if (wide) {
+          return Row(
+            children: [
+              for (final it in tiles)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: _Art(url: it.icon, label: it.name, contain: it.kind == 'live'),
+                  ),
+                ),
+            ],
+          );
+        }
+        final perRow = items.length > 4 && items.first.kind == 'live' ? 3 : (tiles.length <= 4 ? 2 : 3);
+        final rows = (tiles.length / perRow).ceil();
+        return Column(
+          children: [
+            for (var r = 0; r < rows; r++)
+              Expanded(
+                child: Row(
+                  children: [
+                    for (var i = 0; i < perRow; i++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(1),
+                          child: r * perRow + i < tiles.length
+                              ? _Art(
+                                  url: tiles[r * perRow + i].icon,
+                                  label: tiles[r * perRow + i].name,
+                                  contain: tiles[r * perRow + i].kind == 'live',
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Art extends StatelessWidget {
+  const _Art({required this.url, this.label, this.contain = false});
+
+  final String? url;
+  final String? label;
+
+  /// Channel logos are square with transparent padding, so they are *contained*
+  /// over a soft tile; posters are cropped to fill.
+  final bool contain;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        gradient: contain
+            ? RadialGradient(
+                colors: [
+                  AppTheme.accent.withValues(alpha: 0.10),
+                  AppTheme.surface,
+                ],
+              )
+            : null,
+      ),
+      child: url == null || url!.isEmpty
+          ? _label()
+          : Padding(
+        padding: EdgeInsets.all(contain ? 3 : 0),
+        child: Image.network(
+        url!,
+        fit: contain ? BoxFit.contain : BoxFit.cover,
+        // Ask for a small decode: these are thumbnails, not full posters.
+        cacheWidth: 320,
+        errorBuilder: (_, _, _) => _label(),
+        loadingBuilder: (c, child, p) => p == null ? child : const SizedBox.shrink(),
+      ),
+      ),
+    );
+  }
+
+  /// No artwork (or it 404s): print the name over the soft tile, so a wall of
+  /// live channels still reads as content instead of empty boxes.
+  Widget _label() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Text(
+            label ?? '',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10,
+              height: 1.2,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.muted,
+            ),
+          ),
+        ),
+      );
 }
 
 class _AccountCard extends StatelessWidget {
@@ -1995,7 +2186,7 @@ class _AccountCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Image.asset('assets/orion-mark.png', width: 34, height: 34),
+          AppMark(size: 34),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -2082,7 +2273,7 @@ class _CinemaShell extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
                   child: Row(
                     children: [
-                      Image.asset('assets/orion-mark.png', width: 28, height: 28),
+                      AppMark(size: 28),
                       const SizedBox(width: 10),
                       if (!narrow)
                         Text('Orion Player',
@@ -2218,7 +2409,7 @@ class _MasterDetailShell extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 16, 14, 10),
                   child: Row(
                     children: [
-                      Image.asset('assets/orion-mark.png', width: 24, height: 24),
+                      AppMark(size: 24),
                       const SizedBox(width: 9),
                       Text('Orion',
                           style: TextStyle(

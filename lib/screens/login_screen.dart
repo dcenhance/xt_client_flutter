@@ -4,7 +4,9 @@ import '../main.dart';
 import '../panels.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/app_mark.dart';
 import '../widgets/focus_ring.dart';
+import '../widgets/motion.dart';
 import '../xtream_client.dart';
 
 /// The login screen, deliberately bare: the app mark and name, username,
@@ -125,7 +127,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
+      body: MotionBackdrop(
+        child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
@@ -135,61 +138,59 @@ class _LoginScreenState extends State<LoginScreen> {
               builder: (context, _) => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Mark and name, nothing else.
-                  Center(
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(26),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.accent.withValues(alpha: 0.16),
-                                blurRadius: 26,
-                                spreadRadius: 2,
-                              ),
-                            ],
+                  // Mark and name, nothing else. The glow breathes while idle.
+                  FadeSlideIn(
+                    offset: const Offset(0, -10),
+                    duration: const Duration(milliseconds: 620),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          BreathingMark(
+                            size: 96,
+                            child: AppMark(size: 96),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(26),
-                            child: Image.asset('assets/orion-mark.png'),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Orion Player',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.text,
+                              letterSpacing: 0.4,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Orion Player',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.text,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 26),
 
                   if (appState.recentLogins.isNotEmpty) ...[
-                    for (final l in appState.recentLogins.take(3))
-                      _SavedLoginTile(
-                        login: l,
-                        onResume: () => appState.resumeLogin(l),
-                        onForget: () => appState.forget(l),
+                    for (var i = 0; i < appState.recentLogins.take(3).length; i++)
+                      FadeSlideIn(
+                        delay: Duration(milliseconds: 80 + 70 * i),
+                        child: _SavedLoginTile(
+                          login: appState.recentLogins[i],
+                          onResume: () => appState.resumeLogin(appState.recentLogins[i]),
+                          onForget: () => appState.forget(appState.recentLogins[i]),
+                        ),
                       ),
                     const SizedBox(height: 12),
                   ],
 
-                  TextField(
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 160),
+                    child: TextField(
                     controller: _user,
                     decoration: const InputDecoration(labelText: 'Username'),
                     autocorrect: false,
                     onSubmitted: (_) => _submit(),
                   ),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 240),
+                    child: TextField(
                     controller: _pass,
                     obscureText: _obscure,
                     decoration: InputDecoration(
@@ -206,8 +207,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     onSubmitted: (_) => _submit(),
                   ),
+                  ),
                   const SizedBox(height: 8),
-                  Row(
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 300),
+                    child: Row(
                     children: [
                       Switch(
                         value: appState.remember,
@@ -218,29 +222,39 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(fontSize: 13, color: AppTheme.muted)),
                     ],
                   ),
+                  ),
                   const SizedBox(height: 10),
-                  FilledButton(
-                    onPressed: appState.busy ? null : _submit,
-                    child: appState.busy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign In'),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 360),
+                    child: PressableScale(
+                      onTap: appState.busy ? null : _submit,
+                      child: FilledButton(
+                        onPressed: appState.busy ? null : _submit,
+                        child: appState.busy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Sign In'),
+                      ),
+                    ),
                   ),
 
                   // The one extra control: choose a panel yourself.
                   const SizedBox(height: 4),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: appState.busy ? null : _pickPanel,
-                      icon: const Icon(Icons.dns_outlined, size: 16),
-                      label: Text(
-                        _server == null
-                            ? 'Select panel · Automatic'
-                            : 'Select panel · ${panelNameFor(_server!)}',
-                        style: const TextStyle(fontSize: 13),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 420),
+                    child: Center(
+                      child: TextButton.icon(
+                        onPressed: appState.busy ? null : _pickPanel,
+                        icon: const Icon(Icons.dns_outlined, size: 16),
+                        label: Text(
+                          _server == null
+                              ? 'Select panel · Automatic'
+                              : 'Select panel · ${panelNameFor(_server!)}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
                       ),
                     ),
                   ),
@@ -265,12 +279,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                   if (appState.error != null) ...[
                     const SizedBox(height: 16),
-                    _ErrorBox(message: appState.error!, hint: appState.errorHint),
+                    ShakeOnChange(
+                      tick: appState.error,
+                      child: _ErrorBox(
+                        message: appState.error!,
+                        hint: appState.errorHint,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
           ),
+        ),
         ),
       ),
     );

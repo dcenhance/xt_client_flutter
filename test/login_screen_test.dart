@@ -4,7 +4,16 @@ import 'package:xtream_player/screens/login_screen.dart';
 
 void main() {
   testWidgets('login is just the mark, name and credentials', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    // Animations off: the login screen has continuous idle motion, so a widget
+    // test must not wait for it to settle — and reduced-motion is a real path
+    // worth exercising anyway.
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: const LoginScreen(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 600));
 
     expect(find.text('Orion Player'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
@@ -19,12 +28,22 @@ void main() {
   });
 
   testWidgets('one Select panel button, defaulting to automatic', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    // Animations off: the login screen has continuous idle motion, so a widget
+    // test must not wait for it to settle — and reduced-motion is a real path
+    // worth exercising anyway.
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: const LoginScreen(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 600));
 
     expect(find.text('Select panel · Automatic'), findsOneWidget);
 
     await tester.tap(find.text('Select panel · Automatic'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
 
     // The dialog lists the panels the app can try by itself.
     expect(find.text('EUROPE 1'), findsOneWidget);
@@ -33,7 +52,16 @@ void main() {
   });
 
   testWidgets('password field is obscured and can be revealed', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    // Animations off: the login screen has continuous idle motion, so a widget
+    // test must not wait for it to settle — and reduced-motion is a real path
+    // worth exercising anyway.
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: const LoginScreen(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 600));
 
     TextField passwordField() => tester.widgetList<TextField>(find.byType(TextField)).last;
     expect(passwordField().obscureText, isTrue);
