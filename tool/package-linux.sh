@@ -39,7 +39,20 @@ fi
 BUNDLE="$PATCHED"
 
 echo "== icon + desktop entry"
-magick -background none "$ROOT/tool/xtream-player.svg" -resize 256x256 "$OUT/$NAME.png"
+make_png() {
+  local src="$1" dst="$2"
+  if command -v magick >/dev/null; then
+    magick -background none "$src" -resize 256x256 "$dst"
+  elif command -v convert >/dev/null; then
+    convert -background none "$src" -resize 256x256 "$dst"
+  elif command -v rsvg-convert >/dev/null; then
+    rsvg-convert -w 256 -h 256 "$src" -o "$dst"
+  else
+    echo "   warning: no SVG rasteriser (magick/convert/rsvg-convert); using the SVG as-is" >&2
+    cp "$src" "$dst"
+  fi
+}
+make_png "$ROOT/tool/xtream-player.svg" "$OUT/$NAME.png"
 cat > "$OUT/$NAME.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
@@ -152,11 +165,15 @@ exec "$HERE/usr/bin/xtream_player" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 if [[ -x "$TOOLS/appimagetool" ]]; then
-  if ! ARCH="$APPIMAGE_ARCH" "$TOOLS/appimagetool" --no-appstream \
-        "$APPDIR" "$OUT/$SLUG.AppImage" >"$OUT/appimagetool.log" 2>&1; then
-    echo "   appimagetool failed:" >&2
-    tail -n 15 "$OUT/appimagetool.log" >&2
-    rm -f "$OUT/$SLUG.AppImage"
+  AIT_LOG="$OUT/appimagetool.log"
+  ait() { ARCH="$APPIMAGE_ARCH" "$TOOLS/appimagetool" "$@" "$APPDIR" "$OUT/$SLUG.AppImage"; }
+  if ! ait --no-appstream >"$AIT_LOG" 2>&1; then
+    # FUSE is often missing on CI containers — retry through the extract-and-run path
+    if ! ait --appimage-extract-and-run --no-appstream >>"$AIT_LOG" 2>&1; then
+      echo "   appimagetool failed:" >&2
+      tail -n 15 "$AIT_LOG" >&2
+      rm -f "$OUT/$SLUG.AppImage"
+    fi
   fi
 else
   echo "   appimagetool not found in $TOOLS — skipping AppImage" >&2
