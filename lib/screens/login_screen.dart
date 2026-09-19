@@ -4,6 +4,7 @@ import '../diagnostics.dart';
 import '../main.dart';
 import '../panels.dart';
 import '../theme.dart';
+import '../xtream_client.dart';
 import '../widgets/focus_ring.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,6 +25,30 @@ class _LoginScreenState extends State<LoginScreen> {
   List<CandidateResult> _listResults = const [];
   late final TextEditingController _serversList;
   DiagnosticsResult? _diag;
+
+  bool _anonBusy = false;
+  List<AnonProbe> _anonResults = const [];
+
+  /// Looks at each known panel without sending any credentials: which ones are
+  /// even reachable from here, and which of them hand out their lists to
+  /// anyone. Answers "can I see servers before I log in".
+  Future<void> _probeAnon() async {
+    setState(() {
+      _anonBusy = true;
+      _anonResults = const [];
+    });
+    final targets = <String>{
+      if (_server.text.trim().isNotEmpty) XtreamClient.normaliseServer(_server.text),
+      ...kPanelPresets.map((p) => p.url),
+    }.toList();
+    final out = <AnonProbe>[];
+    for (final t in targets) {
+      out.add(await probeAnonymous(server: t));
+      if (mounted) setState(() => _anonResults = List.of(out));
+    }
+    if (!mounted) return;
+    setState(() => _anonBusy = false);
+  }
 
   Future<void> _runDiagnostics() async {
     setState(() {
@@ -267,9 +292,33 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: const Text('Test a list of servers',
                               style: TextStyle(fontSize: 13)),
                         ),
+                        TextButton.icon(
+                          onPressed: _anonBusy ? null : _probeAnon,
+                          icon: _anonBusy
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.travel_explore, size: 16),
+                          label: Text(
+                              _anonBusy ? 'Looking…' : 'Look at servers without login',
+                              style: const TextStyle(fontSize: 13)),
+                        ),
                       ],
                     ),
                     if (_showList) _serversListSection(),
+                    if (_anonResults.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _AnonBox(
+                        results: _anonResults,
+                        onBrowse: (server) {
+                          _server.text = server;
+                          appState.setCredentials(server: server);
+                          appState.browseAsGuest(server);
+                        },
+                        onDismiss: () => setState(() => _anonResults = const []),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     const Text(
                       'The credentials you enter are sent only to the server above. '
@@ -500,6 +549,97 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnonBox extends StatelessWidget {
+  const _AnonBox({
+    required this.results,
+    required this.onBrowse,
+    required this.onDismiss,
+  });
+
+  final List<AnonProbe> results;
+  final void Function(String server) onBrowse;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.travel_explore, size: 15, color: AppTheme.accent),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text('Panels, checked without any login',
+                    style: TextStyle(fontSize: 12.5, color: AppTheme.text)),
+              ),
+              IconButton(
+                onPressed: onDismiss,
+                icon: const Icon(Icons.close, size: 15),
+                tooltip: 'Hide',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const Text(
+            'No username or password was sent. A panel marked OPEN hands out its '
+            'categories to anyone, so its channels can be browsed right away.',
+            style: TextStyle(fontSize: 11, color: AppTheme.muted, height: 1.45),
+          ),
+          const SizedBox(height: 8),
+          for (final r in results)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    r.open
+                        ? Icons.lock_open
+                        : (r.reachable ? Icons.lock_outline : Icons.cloud_off),
+                    size: 14,
+                    color: r.open
+                        ? AppTheme.accent
+                        : (r.reachable ? AppTheme.muted : AppTheme.danger),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(r.server,
+                            style: const TextStyle(
+                                fontSize: 12, color: AppTheme.text)),
+                        Text(r.label,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: r.open ? AppTheme.accent : AppTheme.muted,
+                                height: 1.35)),
+                      ],
+                    ),
+                  ),
+                  if (r.open)
+                    TextButton(
+                      onPressed: () => onBrowse(r.server),
+                      child: const Text('Browse', style: TextStyle(fontSize: 12)),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );

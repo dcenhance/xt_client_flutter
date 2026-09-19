@@ -89,6 +89,13 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             : const Text('Account'),
         actions: [
+          if (appState.guest)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _GuestChip(),
+              ),
+            ),
           if (onContent) ...[
             IconButton(
               tooltip: 'Search',
@@ -97,6 +104,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() => _searchOpen = !_searchOpen);
                 if (_searchOpen) _searchFocus.requestFocus();
               },
+            ),
+            IconButton(
+              tooltip: appState.viewMode == ViewMode.grid ? 'List view' : 'Grid view',
+              icon: Icon(appState.viewMode == ViewMode.grid
+                  ? Icons.view_list_outlined
+                  : Icons.grid_view_outlined),
+              onPressed: () => appState.setViewMode(
+                  appState.viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid),
+            ),
+            IconButton(
+              tooltip: appState.density == Density.compact ? 'Comfortable' : 'Compact',
+              icon: Icon(appState.density == Density.compact
+                  ? Icons.density_medium
+                  : Icons.density_small),
+              onPressed: () => appState.setDensity(appState.density == Density.compact
+                  ? Density.comfortable
+                  : Density.compact),
             ),
             IconButton(
               tooltip: 'Reload',
@@ -163,6 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Text('Xtream Player'),
                 const SizedBox(width: 16),
                 if (!narrow && a != null) _AccountChip(account: a),
+                if (appState.guest) const _GuestChip(),
                 const Spacer(),
               ],
             ),
@@ -181,6 +206,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   controller: _searchController,
                   focusNode: _searchFocus,
                 )),
+              IconButton(
+                tooltip: appState.viewMode == ViewMode.grid ? 'List view (fits more)' : 'Grid view',
+                icon: Icon(appState.viewMode == ViewMode.grid
+                    ? Icons.view_list_outlined
+                    : Icons.grid_view_outlined),
+                onPressed: () => appState.setViewMode(
+                    appState.viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid),
+              ),
+              IconButton(
+                tooltip: appState.density == Density.compact
+                    ? 'Comfortable spacing'
+                    : 'Compact spacing (fits more)',
+                icon: Icon(appState.density == Density.compact
+                    ? Icons.density_medium
+                    : Icons.density_small),
+                onPressed: () => appState.setDensity(appState.density == Density.compact
+                    ? Density.comfortable
+                    : Density.compact),
+              ),
               IconButton(
                 tooltip: 'Reload',
                 icon: const Icon(Icons.refresh),
@@ -544,6 +588,8 @@ class _ContentArea extends StatelessWidget {
       return _ErrorPanel(message: appState.error!, hint: appState.errorHint);
     }
     final items = appState.visibleItems;
+    final st = appState;
+    final compact = st.density == Density.compact;
     if (appState.busy && items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -555,23 +601,34 @@ class _ContentArea extends StatelessWidget {
     }
     return FocusTraversalGroup(
       policy: ReadingOrderTraversalPolicy(),
-      child: GridView.builder(
-        padding: const EdgeInsets.all(14),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 190,
-          childAspectRatio: 0.78,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-        ),
-        itemCount: items.length,
-        itemBuilder: (context, i) {
-          final item = items[i];
-          return _StreamCard(
-            item: item,
-            onSelect: () => _open(context, item),
-          );
-        },
-      ),
+      child: st.viewMode == ViewMode.list
+          ? ListView.builder(
+              padding: EdgeInsets.all(compact ? 6 : 10),
+              itemCount: items.length,
+              itemBuilder: (context, i) => _StreamRow(
+                item: items[i],
+                dense: compact,
+                onSelect: () => _open(context, items[i]),
+              ),
+            )
+          : GridView.builder(
+              padding: EdgeInsets.all(compact ? 8 : 14),
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: compact ? 146 : 190,
+                childAspectRatio: compact ? 1.02 : 0.78,
+                mainAxisSpacing: compact ? 7 : 12,
+                crossAxisSpacing: compact ? 7 : 12,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, i) {
+                final item = items[i];
+                return _StreamCard(
+                  item: item,
+                  compact: compact,
+                  onSelect: () => _open(context, item),
+                );
+              },
+            ),
     );
   }
 
@@ -586,11 +643,37 @@ class _ContentArea extends StatelessWidget {
   }
 }
 
+class _GuestChip extends StatelessWidget {
+  const _GuestChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.accent.withValues(alpha: 0.12),
+        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lock_open, size: 12, color: AppTheme.accent),
+          SizedBox(width: 5),
+          Text('no login — open panel',
+              style: TextStyle(fontSize: 11, color: AppTheme.accent)),
+        ],
+      ),
+    );
+  }
+}
+
 class _StreamCard extends StatelessWidget {
-  const _StreamCard({required this.item, required this.onSelect});
+  const _StreamCard({required this.item, required this.onSelect, this.compact = false});
 
   final StreamItem item;
   final VoidCallback onSelect;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -628,19 +711,97 @@ class _StreamCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(9, 7, 9, 9),
+              padding: EdgeInsets.fromLTRB(compact ? 6 : 9, compact ? 4 : 7, compact ? 6 : 9, compact ? 6 : 9),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.name,
-                    maxLines: 2,
+                    maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: AppTheme.text, height: 1.3),
+                    style: TextStyle(
+                      fontSize: compact ? 11 : 12,
+                      color: AppTheme.text,
+                      height: 1.25,
+                    ),
                   ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dense one-line row: fits roughly four times as many channels as a card and is
+/// what you want on a TV list or a long movie catalogue.
+class _StreamRow extends StatelessWidget {
+  const _StreamRow({required this.item, required this.onSelect, this.dense = false});
+
+  final StreamItem item;
+  final VoidCallback onSelect;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusRing(
+      onSelect: onSelect,
+      child: Container(
+        margin: EdgeInsets.symmetric(vertical: dense ? 1 : 2),
+        padding: EdgeInsets.symmetric(horizontal: 8, vertical: dense ? 3 : 5),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: dense ? 34 : 44,
+              height: dense ? 26 : 32,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Container(
+                  color: const Color(0xFF0B0D10),
+                  child: item.icon == null
+                      ? const Icon(Icons.tv, color: AppTheme.border, size: 15)
+                      : Image.network(
+                          item.icon!,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.tv, color: AppTheme.border, size: 15),
+                          loadingBuilder: (c, child, p) => p == null
+                              ? child
+                              : const SizedBox.shrink(),
+                        ),
+                ),
+              ),
+            ),
+            SizedBox(width: dense ? 8 : 10),
+            Expanded(
+              child: Text(
+                item.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: dense ? 12 : 13,
+                  color: AppTheme.text,
+                ),
+              ),
+            ),
+            if (item.kind == 'series')
+              const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.video_library_outlined,
+                    size: 13, color: AppTheme.muted),
+              ),
+            if (item.kind == 'live')
+              const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.sensors, size: 13, color: AppTheme.accent),
+              ),
           ],
         ),
       ),

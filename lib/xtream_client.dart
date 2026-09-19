@@ -83,6 +83,103 @@ class XtreamException implements Exception {
   String toString() => message;
 }
 
+/// What a panel answers *without* any credentials.
+///
+/// Some installs serve their category lists to anyone — a reseller's leftover,
+/// a panel that was never locked down, or a provider offering a free preview.
+/// Asking anonymously costs nothing and tells the user whether there is
+/// anything to see before they hand over an account.
+class AnonProbe {
+  final String server;
+  final bool reachable;
+  final bool xtreamLike;
+  final int liveCategories;
+  final int vodCategories;
+  final int seriesCategories;
+  final String note;
+
+  AnonProbe({
+    required this.server,
+    required this.reachable,
+    required this.xtreamLike,
+    this.liveCategories = 0,
+    this.vodCategories = 0,
+    this.seriesCategories = 0,
+    required this.note,
+  });
+
+  bool get open => liveCategories + vodCategories + seriesCategories > 0;
+
+  String get label {
+    if (!reachable) return 'no answer — $note';
+    if (!xtreamLike) return 'answers, but not like an Xtream panel — $note';
+    if (open) {
+      return 'OPEN — $liveCategories live / $vodCategories VOD / '
+          '$seriesCategories series categories without login';
+    }
+    return 'panel answers but keeps its lists private';
+  }
+}
+
+/// Asks a panel for its category lists with no username or password.
+Future<AnonProbe> probeAnonymous({
+  required String server,
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  final base = XtreamClient.normaliseServer(server);
+  final c = XtreamClient(server: base, username: '', password: '', timeout: timeout);
+  var reachable = false;
+  var xtreamLike = false;
+  var live = 0;
+  var vod = 0;
+  var series = 0;
+  var note = '';
+  for (final action in const [
+    'get_live_categories',
+    'get_vod_categories',
+    'get_series_categories',
+  ]) {
+    Uri uri;
+    try {
+      uri = Uri.parse('$base/player_api.php?action=$action');
+      uri.port; // forces port validation
+    } on FormatException catch (e) {
+      note = 'The server address "$base" is not a valid URL (${e.message}).';
+      break;
+    }
+    try {
+      final data = await c.getJsonForProbe(uri);
+      reachable = true;
+      if (data is List || data is Map) xtreamLike = true;
+      final list = data is List ? data : const [];
+      if (action == 'get_live_categories') live = list.length;
+      if (action == 'get_vod_categories') vod = list.length;
+      if (action == 'get_series_categories') series = list.length;
+    } on XtreamException catch (e) {
+      note = e.message;
+      // The panel answered, it just refused: that still tells us a server is
+      // there, which is what the user is asking.
+      if (e.kind == XtreamErrorKind.http) reachable = true;
+      if (e.kind == XtreamErrorKind.deadDns ||
+          e.kind == XtreamErrorKind.wrongServer ||
+          e.kind == XtreamErrorKind.tlsMismatch) {
+        break;
+      }
+    } catch (e) {
+      note = '$e';
+    }
+  }
+  return AnonProbe(
+    server: base,
+    reachable: reachable,
+    xtreamLike: xtreamLike,
+    liveCategories: live,
+    vodCategories: vod,
+    seriesCategories: series,
+    note: note.isEmpty ? (reachable ? 'HTTP 200' : 'no response') : note,
+  );
+}
+
 class XtreamClient {
   XtreamClient({
     required this.server,
@@ -147,6 +244,15 @@ class XtreamClient {
         'The server address "$server" is not a valid URL (${e.message}).',
       );
     }
+  }
+
+  /// Public JSON fetch used by [probeAnonymous]; goes through the same
+  /// scheme-fallback path as the real API calls, and validates the address
+  /// first so a typo shows up as a readable error instead of a raw
+  /// FormatException.
+  Future<dynamic> getJsonForProbe(Uri uri) {
+    _ensureValidServer();
+    return _getJson(uri);
   }
 
   Future<dynamic> _getJson(Uri uri) async {

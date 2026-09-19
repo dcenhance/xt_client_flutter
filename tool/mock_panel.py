@@ -16,6 +16,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8420
+# --open: answer list requests without credentials, to exercise the app's
+# anonymous "panel is open" path.
+OPEN = "--open" in sys.argv
 CLIP = "/tmp/test_pattern.mp4"
 VALID = {"username": "demo", "password": "demo"}
 
@@ -86,7 +89,7 @@ class Handler(BaseHTTPRequestHandler):
             pw = (q.get("password") or [""])[0]
             action = (q.get("action") or [""])[0]
             if action:
-                if user != VALID["username"] or pw != VALID["password"]:
+                if not OPEN and (user != VALID["username"] or pw != VALID["password"]):
                     return self._json({"user_info": {"auth": 0}}, status=200)
                 cat = (q.get("category_id") or [""])[0]
                 if action == "get_live_categories":

@@ -305,7 +305,13 @@ Future<List<CandidateResult>> testServers({
                 '${info.activeConnections}/${info.maxConnections} conn',
       ));
     } on XtreamException catch (e) {
-      results.add(CandidateResult(server: raw, ok: false, note: e.message));
+      results.add(CandidateResult(
+        server: raw,
+        ok: false,
+        // 511/512 style answers mean the panel replied and turned the login
+        // down — say that instead of making it sound like the network failed.
+        note: e.kind == XtreamErrorKind.http ? 'refused — ${e.message}' : e.message,
+      ));
     } catch (e) {
       results.add(CandidateResult(server: raw, ok: false, note: '$e'));
     }

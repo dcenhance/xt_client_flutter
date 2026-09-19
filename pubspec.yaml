@@ -1,7 +1,7 @@
 name: xtream_player
 description: "Xtream-Codes IPTV player for Linux, Windows and Android."
 publish_to: 'none'
-version: 0.1.4+5
+version: 0.1.5+6
 
 environment:
   sdk: ^3.13.4

@@ -47,6 +47,30 @@ so the three values your provider gives you (server, username, password) are all
 Both are fully D-pad / remote navigable — the mobile shell is what you get on Android TV and
 Fire TV too.
 
+### Fitting more on screen
+
+Two toggles sit in the app bar on every platform, and both are remembered:
+
+* **Grid ↔ list.** List view is one dense row per channel (logo, name, kind marker) instead of a
+  card. On a 1600×1000 desktop window the grid shows **6 channels**, the compact list shows **13**.
+* **Comfortable ↔ compact.** Compact shrinks cards to ~146 px, tightens spacing and drops the
+  second title line, so a full live list is roughly 2× denser than the default.
+
+### Looking at servers without a login
+
+**Look at servers without login** on the login screen asks the address you typed plus every panel in
+`lib/panels.dart` for their category lists with **no username or password attached**:
+
+| Result | Meaning |
+|---|---|
+| `OPEN — 2 live / 1 VOD / 1 series categories without login` | the panel hands its lists to anyone: press **Browse** and the channels load with no account at all |
+| `panel answers but keeps its lists private` | real panel, needs credentials |
+| `answers, but not like an Xtream panel — HTTP 511` | something else is listening on that port |
+| `no answer` | nothing answered there |
+
+A guest session is marked **no login — open panel** in the app bar and the Account tab, and can be
+left at any time without touching saved credentials.
+
 | Area | Status |
 |---|---|
 | Login (`player_api.php`) with clear failure reasons | yes |
@@ -217,20 +241,21 @@ one tap tells you which one answers from your current network.
 
 The list is in `lib/panels.dart` — plain data, edit or empty it as you like.
 
-**Important:** those panels only answer their own customers' networks. Probed from a line they do
-not know, every one of them refuses before credentials are even checked:
+**About refusals:** a panel that turns a login down answers with `HTTP 511/512` or drops the
+connection. Probed with a deliberately wrong password, all five of these do exactly that:
 
 ```
-http://e-de.dynu.net:8080      HTTP 512
-http://3teamall.xyz:8080       HTTP 512
+http://e-de.dynu.net:8080      HTTP 511/512
+http://3teamall.xyz:8080       HTTP 511/512
 http://maxspectre.com:8080     connection closed before full header
 http://kngkral38.com:8080      connection closed before full header
 http://e-tr.dynuddns.com:8080  HTTP 512
 ```
 
-So "it works in the phone app but not on the PC" is usually network gating, not the client: run the
-test from the same network the phone app uses. A panel that *does* answer reports a tick with the
-account's expiry and connection count, and **Use** switches to it.
+That is the panel rejecting the *login*, not the network. With a real account the same address
+answers normally — `http://e-de.dynu.net:8080` (EUROPE 1) served 4195 live channels to this client
+on Linux with valid credentials. So if every address in the test comes back `refused`, check the
+username and password first; the panel is reachable.
 
 ## Troubleshooting login failures
 

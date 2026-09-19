@@ -6,11 +6,18 @@ import 'xtream_client.dart';
 
 enum ContentTab { live, movies, series }
 
+/// How much content fits on screen. Persisted.
+enum ViewMode { grid, list }
+
+enum Density { comfortable, compact }
+
 class AppState extends ChangeNotifier {
   static const _kServer = 'server';
   static const _kUser = 'user';
   static const _kPass = 'pass';
   static const _kRemember = 'remember';
+  static const _kViewMode = 'view_mode';
+  static const _kDensity = 'density';
 
   SharedPreferences? _prefs;
 
@@ -18,6 +25,11 @@ class AppState extends ChangeNotifier {
   String username = '';
   String password = '';
   bool remember = true;
+  ViewMode viewMode = ViewMode.grid;
+  Density density = Density.comfortable;
+
+  /// True when browsing a panel that answers without credentials.
+  bool guest = false;
 
   bool busy = false;
   String? error;
@@ -41,7 +53,7 @@ class AppState extends ChangeNotifier {
     return items.where((i) => i.name.toLowerCase().contains(q)).toList();
   }
 
-  bool get loggedIn => account != null;
+  bool get loggedIn => account != null || guest;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -49,8 +61,74 @@ class AppState extends ChangeNotifier {
     username = _prefs!.getString(_kUser) ?? '';
     remember = _prefs!.getBool(_kRemember) ?? true;
     password = remember ? (_prefs!.getString(_kPass) ?? '') : '';
+    viewMode = (_prefs!.getString(_kViewMode) ?? 'grid') == 'list'
+        ? ViewMode.list
+        : ViewMode.grid;
+    density = (_prefs!.getString(_kDensity) ?? 'comfortable') == 'compact'
+        ? Density.compact
+        : Density.comfortable;
     if (server.isNotEmpty && username.isNotEmpty && password.isNotEmpty) {
       await login(silent: true);
+    }
+    notifyListeners();
+  }
+
+  Future<void> setViewMode(ViewMode mode) async {
+    viewMode = mode;
+    await _prefs?.setString(_kViewMode, mode == ViewMode.list ? 'list' : 'grid');
+    notifyListeners();
+  }
+
+  Future<void> setDensity(Density value) async {
+    density = value;
+    await _prefs?.setString(_kDensity, value == Density.compact ? 'compact' : 'comfortable');
+    notifyListeners();
+  }
+
+  /// Browse a panel that answers without credentials. No account is claimed:
+  /// if the panel refuses anonymous requests, the content lists stay empty and
+  /// the error explains it.
+  Future<bool> browseAsGuest(String server, {bool silent = false}) async {
+    busy = true;
+    error = null;
+    errorHint = null;
+    notifyListeners();
+    final c = XtreamClient(
+      server: XtreamClient.normaliseServer(server),
+      username: '',
+      password: '',
+    );
+    client = c;
+    this.server = c.effectiveServer;
+    guest = true;
+    account = null;
+    _cache.clear();
+    _categoryCache.clear();
+    _catCache.clear();
+    selectedCategoryId = null;
+    items = const [];
+    categories = const [];
+    busy = false;
+    notifyListeners();
+    await loadContent(tab);
+    return error == null;
+  }
+
+  Future<void> logout() async {
+    account = null;
+    client = null;
+    guest = false;
+    items = const [];
+    categories = const [];
+    selectedCategoryId = null;
+    _cache.clear();
+    _categoryCache.clear();
+    _catCache.clear();
+    error = null;
+    errorHint = null;
+    final p = _prefs;
+    if (p != null) {
+      await p.remove(_kPass);
     }
     notifyListeners();
   }
@@ -121,23 +199,6 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-  }
-
-  Future<void> logout() async {
-    account = null;
-    client = null;
-    items = const [];
-    categories = const [];
-    selectedCategoryId = null;
-    _cache.clear();
-    _categoryCache.clear();
-    error = null;
-    errorHint = null;
-    final p = _prefs;
-    if (p != null) {
-      await p.remove(_kPass);
-    }
-    notifyListeners();
   }
 
   void setCredentials({String? server, String? username, String? password, bool? remember}) {

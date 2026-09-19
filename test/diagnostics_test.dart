@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xtream_player/diagnostics.dart';
 import 'package:xtream_player/panels.dart';
 import 'package:xtream_player/xtream_client.dart'
-    show placeholderAddresses, XtreamClient;
+    show placeholderAddresses, probeAnonymous, XtreamClient;
 
 /// Diagnostics must not lie: a placeholder DNS record, a live panel that refuses
 /// the login, and a working panel all have to produce different verdicts.
@@ -27,6 +27,7 @@ Future<HttpServer> panel({required String body, int status = 200, bool respond =
 
 void main() {
   _presets();
+  _anonymousProbe();
 
   test('placeholder addresses are detected', () {
     expect(placeholderAddresses.contains('1.1.1.1'), isTrue);
@@ -154,4 +155,50 @@ void _presets() {
     expect(presetUrlsAsText().split('\n'), hasLength(5));
     expect(kPanelPresets.first.name, 'EUROPE 1');
   });
+}
+
+void _anonymousProbe() {
+  test('a panel that answers without credentials is reported as open', () async {
+    final server = await panel(
+      body: jsonEncode([
+        {'category_id': '1', 'category_name': 'News'},
+        {'category_id': '2', 'category_name': 'Sports'},
+      ]),
+    );
+    final probe = await probeAnonymous(
+        server: 'http://127.0.0.1:${server.port}',
+        timeout: const Duration(seconds: 4));
+    expect(probe.reachable, isTrue);
+    expect(probe.xtreamLike, isTrue);
+    expect(probe.open, isTrue);
+    expect(probe.liveCategories, 2);
+    expect(probe.label, contains('OPEN'));
+    await server.close(force: true);
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('a panel that keeps its lists private is not reported as open', () async {
+    final server = await panel(body: jsonEncode([]));
+    final probe = await probeAnonymous(
+        server: 'http://127.0.0.1:${server.port}',
+        timeout: const Duration(seconds: 4));
+    expect(probe.reachable, isTrue);
+    expect(probe.open, isFalse);
+    expect(probe.label, contains('private'));
+    await server.close(force: true);
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('a malformed address is reported as a bad address, not a raw exception', () async {
+    final probe = await probeAnonymous(
+        server: 'http://127.0.0.1:8421r', timeout: const Duration(seconds: 2));
+    expect(probe.open, isFalse);
+    expect(probe.note, contains('not a valid URL'));
+    expect(probe.note, isNot(contains('FormatException')));
+  }, timeout: const Timeout(Duration(seconds: 30)));
+
+  test('a host that answers nothing is reported as unreachable, not open', () async {
+    final probe = await probeAnonymous(
+        server: 'http://127.0.0.1:59999', timeout: const Duration(seconds: 2));
+    expect(probe.open, isFalse);
+    expect(probe.reachable, isFalse);
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }
