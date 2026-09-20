@@ -1,4 +1,4 @@
-# Vermeil
+# Spectre
 
 A cross-platform IPTV client for **Xtream-Codes** panels — Linux, Windows, Android and iOS —
 built so a subscription can be used *without* the phone app that normally locks it in.
@@ -10,7 +10,7 @@ so the three values your provider gives you (server, username, password) are all
 
 ```
 ┌───────────────┐   player_api.php?username=..&password=..   ┌──────────────────┐
-│ Vermeil  │ ─────────────────────────────────────────► │ your IPTV panel  │
+│ Spectre       │ ─────────────────────────────────────────► │ your IPTV panel  │
 │  Linux/Win/   │ ◄─────── live / VOD / series / EPG ─────── │ (host:8080 …)    │
 │  Android      │   /live/u/p/<id>.ts · /movie/… · /series/…  └──────────────────┘
 └───────────────┘
@@ -37,16 +37,18 @@ so the three values your provider gives you (server, username, password) are all
 
 ## The name
 
-**Vermeil** is gilded silver — a real metalworking term for gold laid over silver, pronounced
-*ver-MAY*. It fits what the app looks like: gold on black, with a gold play glyph inside a broken
-orbital ring. The display name lives in a handful of places (window titles, the Android label, the iOS
-bundle name, the desktop entry, this file) and nothing else depends on it — the Dart package name,
-the executable and the repository stay the same so existing installs keep working.
+**Spectre** — the shadow the panel never admits to. An Xtream account is usually locked to one phone
+app; this client steps out of it, so the name fits the ghost that appears wherever your credentials
+are welcome, and the old television word *spectrum* is inside it too.
+
+The display name lives in a handful of places (window titles, the Android label, the iOS display name,
+the desktop entry, this file) and nothing else depends on it — the Dart package name, the Android
+application ID, the executable and the repository stay the same so existing installs keep working.
 
 ## What it does
 
-The app is **Vermeil**: a gold play glyph inside a broken orbital ring, with Vermeil's three
-belt stars riding the arc — a few large shapes on a deep-black squircle so it still reads at 48 px.
+The app is **Spectre**: a hooded silhouette that carries the play glyph, drawn as a few large
+shapes on a deep-black squircle so it still reads at 48 px.
 Six marks ship with the app — **Orbit**, **Belt**, **Monogram**, **Prism**, **Aperture** and
 **Stars** — and **Account → App icon** switches between them live; the choice is remembered and
 applies everywhere the mark appears. The default (Orbit) is also the Android launcher icon
@@ -286,7 +288,14 @@ focused item, Esc closes it, and the remote key map (OK, A, Back, B, Esc) is ass
 | Player: `← →` | seek ±10 s (VOD and episodes) / volume (live) |
 | Player: `Enter`, `Space`, media keys | play/pause |
 | Player: `M` | mute · `+` `-` volume |
-| Player: `C` | cinema mode (hides chrome) · `I` toggle info card |
+| Player: `C` | cinema mode (hides chrome) · `I` now/next · `F` fullscreen (landscape, immersive) |
+
+On a phone the player is picture-first: one full-bleed video with a control layer that fades out
+while playback runs. A tap brings it back, a double tap on the left or right half scrubs ±10 s and a
+double tap in the middle plays/pauses. The volume slider, mute, cinema and fullscreen live on their
+own row above the transport buttons, and the keyboard legend only appears on windows ≥ 900 dp wide —
+`test/player_ui_test.dart` keeps that layout honest (no overflow at 360 dp, 44 dp touch targets,
+no scrubber on a live stream).
 
 Works with Fire TV / Android TV remotes, HID/IR remotes, keyboards and controllers that
 present themselves as keyboards. Focus is always visible (accent ring) and every screen is

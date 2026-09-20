@@ -11,32 +11,32 @@ if [[ ! -x "$BIN" ]]; then
   exit 1
 fi
 
-ICON="$HERE/tool/vermeil.svg"
-PNG="$HOME/.local/share/icons/hicolor/512x512/apps/vermeil.png"
+ICON="$HERE/tool/spectre.svg"
+PNG="$HOME/.local/share/icons/hicolor/512x512/apps/spectre.png"
 APPS="$HOME/.local/share/applications"
 mkdir -p "$APPS"
 
-rm -f "$APPS/xtream-player.desktop" "$APPS/orion-player.desktop" "$APPS/aurum.desktop"
+rm -f "$APPS/xtream-player.desktop" "$APPS/orion-player.desktop" "$APPS/aurum.desktop" "$APPS/vermeil.desktop"
 
 # install the icon into the theme so menus and docks pick it up
-if [ -s "$HERE/assets/vermeil-mark.png" ]; then
+if [ -s "$HERE/assets/spectre-mark.png" ]; then
   mkdir -p "$(dirname "$PNG")"
-  cp "$HERE/assets/vermeil-mark.png" "$PNG"
+  cp "$HERE/assets/spectre-mark.png" "$PNG"
 fi
 
-cat > "$APPS/vermeil.desktop" <<DESKTOP
+cat > "$APPS/spectre.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Vermeil
+Name=Spectre
 Comment=IPTV client for Xtream-Codes panels
 Exec=$BIN
-Icon=vermeil
+Icon=spectre
 Terminal=false
 Categories=AudioVideo;Player;TV;
 StartupWMClass=com.dcenhance.xtream_player
 DESKTOP
 
-chmod +x "$APPS/vermeil.desktop"
+chmod +x "$APPS/spectre.desktop"
 command -v update-desktop-database >/dev/null && update-desktop-database "$APPS" || true
 gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
-echo "Installed $APPS/vermeil.desktop -> $BIN"
+echo "Installed $APPS/spectre.desktop -> $BIN"

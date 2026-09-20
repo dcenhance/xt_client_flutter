@@ -1,0 +1,8 @@
+{
+  "schema": 3,
+  "slug": "Spectre",
+  "packageName": "com.dcenhance.xtream_player",
+  "endpointSha256": "d6e26b438389357f602c598f975a556581d0c298b31c1f7ff766df7e03001c83",
+  "accent": "#ffb26b",
+  "framework": "flutter"
+}

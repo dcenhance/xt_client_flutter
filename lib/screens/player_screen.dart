@@ -8,17 +8,22 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../main.dart';
 import '../models.dart';
 import '../theme.dart';
-import '../widgets/focus_ring.dart';
+import '../widgets/player_chrome.dart';
 
 /// Plays a live channel, a movie or a series episode.
 ///
-/// Full D-pad / remote control:
+/// The shell is one full-bleed picture with a single auto-hiding control layer
+/// drawn on top of it: no fixed control bar and no reserved strip, so a phone
+/// spends its whole screen on the video and a desktop window still gets the
+/// wide layout with keyboard hints.
+///
+/// Keyboard / remote:
 ///   ↑ ↓            previous / next item in the current list
-///   ← →            seek 10 s back / forward
+///   ← →            seek 10 s back / forward (volume for live TV)
 ///   Enter, Space   play / pause
 ///   M              mute,  + / -  volume
-///   C              cinema mode (hide chrome),  Esc back
-///   Backspace      stop and go back
+///   F              fullscreen (landscape + immersive)
+///   C              cinema (hide the chrome),  I  now/next,  Esc back
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({super.key, required this.item, this.overrideUrl});
 
@@ -39,18 +44,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
   List<StreamItem> _queue = const [];
   int _index = 0;
 
+  /// The chrome is everything that is not the picture. It hides itself while
+  /// playback runs, and cinema mode starts with it hidden on purpose.
+  bool _chrome = true;
   bool _cinema = false;
   bool _showInfo = true;
+  bool _fullscreen = false;
   double _volume = 100;
   bool _muted = false;
   bool _playing = false;
+  bool _buffering = false;
   String? _error;
   List<EpgEntry> _epg = const [];
   Timer? _epgTimer;
+  Timer? _chromeTimer;
+  TapDownDetails? _pendingTap;
+
+  static const _chromeTimeout = Duration(seconds: 4);
 
   StreamSubscription? _errSub;
   StreamSubscription? _playingSub;
-  StreamSubscription? _posSub;
+  StreamSubscription? _bufferingSub;
 
   @override
   void initState() {
@@ -73,24 +87,85 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _playingSub = _player.stream.playing.listen((v) {
       if (!mounted) return;
       setState(() => _playing = v);
+      _restartChromeTimer();
+    });
+    _bufferingSub = _player.stream.buffering.listen((v) {
+      if (!mounted) return;
+      setState(() => _buffering = v);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _keyboardFocus.requestFocus();
       _openCurrent();
     });
+    _restartChromeTimer();
   }
 
   @override
   void dispose() {
     _epgTimer?.cancel();
+    _chromeTimer?.cancel();
     _errSub?.cancel();
     _playingSub?.cancel();
-    _posSub?.cancel();
+    _bufferingSub?.cancel();
     _player.dispose();
     _keyboardFocus.dispose();
+    if (_fullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
     super.dispose();
   }
+
+  // ── chrome visibility ────────────────────────────────────────────────────
+
+  void _restartChromeTimer() {
+    _chromeTimer?.cancel();
+    if (!_chrome || !_playing) return;
+    _chromeTimer = Timer(_chromeTimeout, () {
+      if (!mounted || !_playing) return;
+      setState(() => _chrome = false);
+    });
+  }
+
+  void _poke() {
+    if (!_chrome) setState(() => _chrome = true);
+    _restartChromeTimer();
+  }
+
+  void _toggleChrome() {
+    setState(() => _chrome = !_chrome);
+    _restartChromeTimer();
+  }
+
+  void _toggleCinema() {
+    setState(() {
+      _cinema = !_cinema;
+      _chrome = !_cinema;
+    });
+    _restartChromeTimer();
+  }
+
+  // ── fullscreen ───────────────────────────────────────────────────────────
+
+  Future<void> _toggleFullscreen() async {
+    final next = !_fullscreen;
+    setState(() {
+      _fullscreen = next;
+      if (next) _chrome = true;
+    });
+    if (next) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations(
+          const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+    } else {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
+    _restartChromeTimer();
+  }
+
+  // ── playback ─────────────────────────────────────────────────────────────
 
   String _urlFor(StreamItem item) {
     if (widget.overrideUrl != null && item.id == widget.item.id) return widget.overrideUrl!;
@@ -128,6 +203,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _epgTimer?.cancel();
       _epg = const [];
     }
+    _restartChromeTimer();
   }
 
   Future<void> _loadEpg() async {
@@ -152,12 +228,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else {
       await _player.play();
     }
+    _poke();
   }
 
   Future<void> _seek(int seconds) async {
+    if (_current.kind == 'live') return;
     final pos = _player.state.position;
     final target = pos + Duration(seconds: seconds);
     await _player.seek(target.isNegative ? Duration.zero : target);
+    _poke();
   }
 
   Future<void> _setVolume(double v) async {
@@ -167,6 +246,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _muted = clamped == 0;
     });
     await _player.setVolume(clamped);
+    _poke();
+  }
+
+  Future<void> _toggleMute() => _setVolume(_muted ? 100 : 0);
+
+  /// Double tap on the left or the right half scrubs, the middle toggles playback.
+  void _onDoubleTap(TapDownDetails details) {
+    final width = MediaQuery.of(context).size.width;
+    final x = details.localPosition.dx;
+    if (_current.kind == 'live') {
+      _poke();
+      return;
+    }
+    if (x < width * 0.4) {
+      _seek(-10);
+    } else if (x > width * 0.6) {
+      _seek(10);
+    } else {
+      _togglePlay();
+    }
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -217,8 +316,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyM) {
-      setState(() => _muted = !_muted);
-      _player.setVolume(_muted ? 0 : _volume);
+      _toggleMute();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.add) {
@@ -229,12 +327,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _setVolume(_volume - 5);
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.keyF) {
+      _toggleFullscreen();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.keyC) {
-      setState(() => _cinema = !_cinema);
+      _toggleCinema();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyI) {
       setState(() => _showInfo = !_showInfo);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape && _fullscreen) {
+      _toggleFullscreen();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -242,345 +348,118 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final wide = MediaQuery.of(context).size.width >= 900;
+    final seekable = _current.kind != 'live';
+
     return Focus(
       focusNode: _keyboardFocus,
       autofocus: true,
       onKeyEvent: _onKey,
       child: Scaffold(
         backgroundColor: Colors.black,
-        appBar: _cinema
-            ? null
-            : AppBar(
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Back (Esc)',
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                title: Text(_current.name),
-                actions: [
-                  IconButton(
-                    tooltip: 'Cinema mode (C)',
-                    icon: Icon(_cinema ? Icons.fullscreen_exit : Icons.fullscreen),
-                    onPressed: () => setState(() => _cinema = !_cinema),
-                  ),
-                ],
-              ),
-        body: Column(
+        body: Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Video(
-                      key: _videoKey,
-                      controller: _controller,
-                      controls: NoVideoControls,
-                      fill: Colors.black,
-                    ),
-                  ),
-                  if (_error != null)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.82),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 520),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.warning_amber_rounded,
-                                    color: AppTheme.danger, size: 32),
-                                const SizedBox(height: 12),
-                                Text('Stream failed',
-                                    style: TextStyle(fontSize: 15, color: AppTheme.text)),
-                                const SizedBox(height: 8),
-                                Text(_error!,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        fontSize: 12, color: AppTheme.muted, height: 1.5)),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    FilledButton(
-                                      onPressed: _openCurrent,
-                                      child: const Text('Retry'),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    OutlinedButton(
-                                      onPressed: () => _step(1),
-                                      child: const Text('Next channel'),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_showInfo && !_cinema)
-                    Positioned(
-                      left: 16,
-                      top: 12,
-                      child: _InfoCard(
-                        title: _current.name,
-                        epg: _epg,
-                        kind: _current.kind,
-                      ),
-                    ),
-                ],
+            Video(
+              key: _videoKey,
+              controller: _controller,
+              controls: NoVideoControls,
+              fill: Colors.black,
+            ),
+            // Tap layer: a single tap brings the chrome back, a double tap scrubs.
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleChrome,
+                onDoubleTapDown: (d) => _pendingTap = d,
+                onDoubleTap: () {
+                  final d = _pendingTap;
+                  if (d != null) _onDoubleTap(d);
+                },
               ),
             ),
-            _ControlBar(
+            if (_error != null) Positioned.fill(child: _errorOverlay()),
+            if (_buffering && _playing && _error == null)
+              const Center(
+                child: SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                ),
+              ),
+            PlayerTopChrome(
+              visible: _chrome,
+              title: _current.name,
+              kind: _current.kind,
+              epg: _showInfo ? _epg : const [],
+              index: _index,
+              total: _queue.length,
+              fullscreen: _fullscreen,
+              onBack: () => Navigator.of(context).pop(),
+              onFullscreen: _toggleFullscreen,
+            ),
+            PlayerBottomChrome(
+              visible: _chrome,
+              wide: wide,
+              seekable: seekable,
               playing: _playing,
               volume: _volume,
               muted: _muted,
-              seekable: _current.kind != 'live',
-              position: _player,
-              item: _current,
-              index: _index,
-              total: _queue.length,
+              position: _player.stream.position,
+              duration: _player.stream.duration,
               onPlayPause: _togglePlay,
               onSeek: _seek,
               onVolume: _setVolume,
+              onMute: _toggleMute,
               onPrev: () => _step(-1),
               onNext: () => _step(1),
-              onCinema: () => setState(() => _cinema = !_cinema),
+              onCinema: _toggleCinema,
+              onFullscreen: _toggleFullscreen,
+              onScrub: (d) => _player.seek(d),
+              onPoke: _poke,
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.title, required this.epg, required this.kind});
-
-  final String title;
-  final List<EpgEntry> epg;
-  final String kind;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _errorOverlay() {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 460),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: AppTheme.text)),
-          if (kind == 'live' && epg.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            for (final e in epg)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  '${_clock(e.start)}–${_clock(e.end)}  ${e.title}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11.5, color: AppTheme.muted),
+      color: Colors.black.withValues(alpha: 0.86),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: AppTheme.danger, size: 30),
+                const SizedBox(height: 12),
+                Text('Stream failed',
+                    style: TextStyle(fontSize: 15, color: AppTheme.text)),
+                const SizedBox(height: 8),
+                Text(_error!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.muted, height: 1.5)),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FilledButton(onPressed: _openCurrent, child: const Text('Retry')),
+                    const SizedBox(width: 10),
+                    OutlinedButton(
+                        onPressed: () => _step(1), child: const Text('Next')),
+                  ],
                 ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  static String _clock(DateTime? d) {
-    if (d == null) return '--:--';
-    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-  }
-}
-
-class _ControlBar extends StatelessWidget {
-  const _ControlBar({
-    required this.playing,
-    required this.volume,
-    required this.muted,
-    required this.seekable,
-    required this.position,
-    required this.item,
-    required this.index,
-    required this.total,
-    required this.onPlayPause,
-    required this.onSeek,
-    required this.onVolume,
-    required this.onPrev,
-    required this.onNext,
-    required this.onCinema,
-  });
-
-  final bool playing;
-  final double volume;
-  final bool muted;
-  final bool seekable;
-  final Player position;
-  final StreamItem item;
-  final int index;
-  final int total;
-  final VoidCallback onPlayPause;
-  final void Function(int) onSeek;
-  final void Function(double) onVolume;
-  final VoidCallback onPrev;
-  final VoidCallback onNext;
-  final VoidCallback onCinema;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        border: Border(top: BorderSide(color: AppTheme.border)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _Glyph(
-                icon: Icons.skip_previous,
-                tooltip: 'Previous item (↑)',
-                onTap: onPrev,
-              ),
-              _Glyph(
-                icon: playing ? Icons.pause : Icons.play_arrow,
-                tooltip: 'Play / pause (Enter, Space)',
-                onTap: onPlayPause,
-              ),
-              _Glyph(
-                icon: Icons.skip_next,
-                tooltip: 'Next item (↓)',
-                onTap: onNext,
-              ),
-              _Glyph(
-                icon: Icons.replay_10,
-                tooltip: 'Back 10 s (←)',
-                onTap: () => onSeek(-10),
-                enabled: seekable,
-              ),
-              _Glyph(
-                icon: Icons.forward_10,
-                tooltip: 'Forward 10 s (→)',
-                onTap: () => onSeek(10),
-                enabled: seekable,
-              ),
-              const SizedBox(width: 12),
-              StreamBuilder<Duration>(
-                stream: position.stream.position,
-                builder: (context, snap) {
-                  final pos = snap.data ?? Duration.zero;
-                  return Text(_fmt(pos),
-                      style: TextStyle(fontSize: 11.5, color: AppTheme.muted));
-                },
-              ),
-              const Spacer(),
-              Text(
-                '${index + 1} / $total',
-                style: TextStyle(fontSize: 11.5, color: AppTheme.muted),
-              ),
-              const SizedBox(width: 16),
-              IconButton(
-                tooltip: 'Mute (M)',
-                icon: Icon(muted ? Icons.volume_off : Icons.volume_up,
-                    size: 19, color: AppTheme.text),
-                onPressed: () => onVolume(muted ? 100 : 0),
-              ),
-              SizedBox(
-                width: 120,
-                child: Slider(
-                  value: volume.clamp(0, 100),
-                  onChanged: onVolume,
-                ),
-              ),
-              _Glyph(
-                icon: Icons.fullscreen,
-                tooltip: 'Cinema mode (C)',
-                onTap: onCinema,
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: KeyHintBar(
-              hints: seekable
-                  ? const [
-                      ('↑ ↓', 'channel'),
-                      ('← →', 'seek 10s'),
-                      ('Enter', 'play/pause'),
-                      ('M', 'mute'),
-                      ('C', 'cinema'),
-                      ('Esc', 'back'),
-                    ]
-                  : const [
-                      ('↑ ↓', 'channel'),
-                      ('← →', 'volume'),
-                      ('Enter', 'play/pause'),
-                      ('M', 'mute'),
-                      ('C', 'cinema'),
-                      ('Esc', 'back'),
-                    ],
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  static String _fmt(Duration d) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    return h > 0 ? '${two(h)}:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}';
-  }
-}
-
-class _Glyph extends StatelessWidget {
-  const _Glyph({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-    this.enabled = true,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String tooltip;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) {
-      return Tooltip(
-        message: '$tooltip — not available for live TV',
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: Icon(icon, size: 21, color: AppTheme.border),
-        ),
-      );
-    }
-    return Tooltip(
-      message: tooltip,
-      child: FocusRing(
-        borderRadius: 4,
-        onSelect: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: Icon(icon, size: 21, color: AppTheme.text),
         ),
       ),
     );
   }
 }
+

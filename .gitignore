@@ -8,6 +8,11 @@ build/
 .idea/
 .vscode/
 
+# Release signing (never commit)
+android/key.properties
+*.jks
+*.keystore
+
 # OS
 .DS_Store
 Thumbs.db

@@ -7,7 +7,7 @@
   #define AppVersion "0.1.0"
 #endif
 
-#define AppName "Vermeil"
+#define AppName "Spectre"
 #define AppPublisher "dcenhance"
 #define AppURL "https://github.com/dcenhance/xt_client_flutter"
 #define AppExe "xtream_player.exe"

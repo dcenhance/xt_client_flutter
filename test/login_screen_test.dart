@@ -15,7 +15,7 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 600));
 
-    expect(find.text('Vermeil'), findsOneWidget);
+    expect(find.text('Spectre'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
