@@ -52,11 +52,11 @@ make_png() {
     cp "$src" "$dst"
   fi
 }
-make_png "$ROOT/tool/aurum.svg" "$OUT/$NAME.png"
+make_png "$ROOT/tool/vermeil.svg" "$OUT/$NAME.png"
 cat > "$OUT/$NAME.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Aurum
+Name=Vermeil
 Comment=IPTV client for Xtream-Codes panels
 Exec=$NAME
 Icon=$NAME

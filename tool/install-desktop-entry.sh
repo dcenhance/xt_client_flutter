@@ -11,32 +11,32 @@ if [[ ! -x "$BIN" ]]; then
   exit 1
 fi
 
-ICON="$HERE/tool/aurum.svg"
-PNG="$HOME/.local/share/icons/hicolor/512x512/apps/aurum.png"
+ICON="$HERE/tool/vermeil.svg"
+PNG="$HOME/.local/share/icons/hicolor/512x512/apps/vermeil.png"
 APPS="$HOME/.local/share/applications"
 mkdir -p "$APPS"
 
-rm -f "$APPS/xtream-player.desktop" "$APPS/orion-player.desktop"
+rm -f "$APPS/xtream-player.desktop" "$APPS/orion-player.desktop" "$APPS/aurum.desktop"
 
 # install the icon into the theme so menus and docks pick it up
-if [ -s "$HERE/assets/aurum-mark.png" ]; then
+if [ -s "$HERE/assets/vermeil-mark.png" ]; then
   mkdir -p "$(dirname "$PNG")"
-  cp "$HERE/assets/aurum-mark.png" "$PNG"
+  cp "$HERE/assets/vermeil-mark.png" "$PNG"
 fi
 
-cat > "$APPS/aurum.desktop" <<DESKTOP
+cat > "$APPS/vermeil.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Aurum
+Name=Vermeil
 Comment=IPTV client for Xtream-Codes panels
 Exec=$BIN
-Icon=aurum
+Icon=vermeil
 Terminal=false
 Categories=AudioVideo;Player;TV;
 StartupWMClass=com.dcenhance.xtream_player
 DESKTOP
 
-chmod +x "$APPS/aurum.desktop"
+chmod +x "$APPS/vermeil.desktop"
 command -v update-desktop-database >/dev/null && update-desktop-database "$APPS" || true
 gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
-echo "Installed $APPS/aurum.desktop -> $BIN"
+echo "Installed $APPS/vermeil.desktop -> $BIN"

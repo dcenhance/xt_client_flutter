@@ -1,4 +1,4 @@
-# Aurum
+# Vermeil
 
 A cross-platform IPTV client for **Xtream-Codes** panels — Linux, Windows, Android and iOS —
 built so a subscription can be used *without* the phone app that normally locks it in.
@@ -10,7 +10,7 @@ so the three values your provider gives you (server, username, password) are all
 
 ```
 ┌───────────────┐   player_api.php?username=..&password=..   ┌──────────────────┐
-│ Aurum  │ ─────────────────────────────────────────► │ your IPTV panel  │
+│ Vermeil  │ ─────────────────────────────────────────► │ your IPTV panel  │
 │  Linux/Win/   │ ◄─────── live / VOD / series / EPG ─────── │ (host:8080 …)    │
 │  Android      │   /live/u/p/<id>.ts · /movie/… · /series/…  └──────────────────┘
 └───────────────┘
@@ -37,14 +37,15 @@ so the three values your provider gives you (server, username, password) are all
 
 ## The name
 
-**Aurum** is Latin for gold — the app's default palette is gold on black, and the mark is a gold play
-glyph inside a broken orbital ring. It is a placeholder of taste, not a law: the display name lives in
-a handful of places (window titles, the Android label, the iOS bundle name, the desktop entry, this
-file) and nothing else depends on it.
+**Vermeil** is gilded silver — a real metalworking term for gold laid over silver, pronounced
+*ver-MAY*. It fits what the app looks like: gold on black, with a gold play glyph inside a broken
+orbital ring. The display name lives in a handful of places (window titles, the Android label, the iOS
+bundle name, the desktop entry, this file) and nothing else depends on it — the Dart package name,
+the executable and the repository stay the same so existing installs keep working.
 
 ## What it does
 
-The app is **Aurum**: a gold play glyph inside a broken orbital ring, with Aurum's three
+The app is **Vermeil**: a gold play glyph inside a broken orbital ring, with Vermeil's three
 belt stars riding the arc — a few large shapes on a deep-black squircle so it still reads at 48 px.
 Six marks ship with the app — **Orbit**, **Belt**, **Monogram**, **Prism**, **Aperture** and
 **Stars** — and **Account → App icon** switches between them live; the choice is remembered and
