@@ -69,6 +69,12 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
   private boolean appUpdate;
   private boolean dataUpdate;
   private boolean catalogRequired;
+  // The per-version changelog comes from the signed descriptor, already localized in
+  // the 20 app languages by the archive.
+  private DceArchiveUpdates.Changelog releaseNotes;
+  private DceArchiveUpdates.DataChangelog dataNotes;
+  private android.widget.ScrollView notesScroll;
+  private LinearLayout notesBody;
   private boolean transferBusy;
   private boolean installAfterContent;
   private DceArchiveUpdates.CatalogResult contentResult;
@@ -87,6 +93,8 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
       if (targetVersion <= 0L) throw new IllegalArgumentException("Invalid update target");
       catalog = DceArchiveUpdates.catalogFor(update);
       catalogRevision = DceArchiveUpdates.catalogRevision(update);
+      releaseNotes = DceArchiveUpdates.changelogFor(update, deviceLocale());
+      dataNotes = DceArchiveUpdates.dataChangelogFor(update, deviceLocale());
       appUpdate = !DceArchiveUpdates.installedVersionAtLeast(this, targetVersion);
       dataUpdate = catalog != null && DceArchiveUpdates.catalogUpdateAvailable(this, update);
       catalogRequired = dataUpdate && DceArchiveUpdates.isRequiredCatalog(update);
@@ -201,6 +209,64 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     if (status != null) status.setVisibility(View.GONE);
   }
   private static String megabytes(long bytes) { return String.format(Locale.US, "%.1f", bytes / 1048576d); }
+  // The size change the user sees is measured, not estimated: the signed release size
+  // against the APK this device is actually running.
+  private long installedApkBytes() {
+    try {
+      android.content.pm.ApplicationInfo info = getApplicationInfo();
+      String path = info == null ? null : info.sourceDir;
+      long length = path == null ? 0L : new java.io.File(path).length();
+      return length > 0L ? length : 0L;
+    } catch (Exception unavailable) { return 0L; }
+  }
+  private String sizeChangeText() {
+    if (releaseNotes == null) return null;
+    long installed = installedApkBytes();
+    long target = 0L;
+    try { target = update.getLong("sizeBytes"); } catch (Exception invalid) { target = 0L; }
+    if (installed <= 0L || target <= 0L) return null;
+    long delta = target - installed;
+    String change;
+    if (delta == 0L) change = releaseNotes.same;
+    else change = String.format(deviceLocale(), delta > 0L ? releaseNotes.larger : releaseNotes.smaller, megabytes(Math.abs(delta)));
+    return String.format(deviceLocale(), releaseNotes.sizeLine, megabytes(installed), megabytes(target)) + " · " + change;
+  }
+  // The notes area is built from the same primitives for a release and for a data
+  // update, so both read the same way in every language.
+  private TextView notesHeading(String value, int topMargin) {
+    TextView view = text(value, 12, textMuted, true); view.setLetterSpacing(.10f);
+    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.topMargin = topMargin;
+    view.setLayoutParams(params);
+    return view;
+  }
+  private TextView notesLine(String value, int topMargin, int color) {
+    TextView view = text(value, 12, color, false); view.setLineSpacing(dp(3), 1f);
+    LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2); params.topMargin = topMargin;
+    view.setLayoutParams(params);
+    return view;
+  }
+  private void notesCategories(LinearLayout body, String[] labels, String[][] notes) {
+    for (int group = 0; group < labels.length; group++) {
+      if (notes[group].length == 0) continue;
+      TextView groupLabel = text(labels[group], 12, accentInk, true);
+      LinearLayout.LayoutParams groupLabelLp = new LinearLayout.LayoutParams(-1, -2);
+      groupLabelLp.topMargin = group == 0 ? dp(12) : dp(14);
+      body.addView(groupLabel, groupLabelLp);
+      for (String note : notes[group]) {
+        TextView noteLine = text("• " + note, 13, textMuted, false); noteLine.setLineSpacing(dp(3), 1f);
+        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2); noteLp.topMargin = dp(6);
+        body.addView(noteLine, noteLp);
+      }
+    }
+  }
+  private void setNotesHeight(int height) {
+    if (notesScroll == null) return;
+    ViewGroup.LayoutParams params = notesScroll.getLayoutParams();
+    if (params == null) return;
+    params.height = height;
+    notesScroll.setLayoutParams(params);
+  }
+  private int notesHeight() { return notesScroll == null || notesScroll.getLayoutParams() == null ? 0 : notesScroll.getLayoutParams().height; }
   // The user does not want to stand and watch: the verified transfer starts exactly
   // like the primary action and the screen steps aside, so the phone stays usable
   // while the bytes arrive. The activity keeps running; coming back shows the real
@@ -517,6 +583,15 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     TextView body = text(bodyText, 15, textMuted, false); body.setLineSpacing(dp(4), 1f); body.setMaxLines(3); LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(-1, -2); bodyLp.topMargin = dp(8); shell.addView(body, bodyLp);
     if (appUpdate) {
       TextView versionChip = text(version, 12, textPrimary, true); versionChip.setGravity(Gravity.CENTER); versionChip.setPadding(dp(12), 0, dp(12), 0); versionChip.setBackground(round(blend(surface, textPrimary, .10d), 12)); LinearLayout.LayoutParams chipLp = new LinearLayout.LayoutParams(-2, dp(32)); chipLp.topMargin = dp(18); shell.addView(versionChip, chipLp);
+      // Whether the release is bigger or smaller than what the device runs right now
+      // is a real answer, not an estimate: installed APK bytes against the signed size.
+      String sizeChange = sizeChangeText();
+      if (sizeChange != null) {
+        TextView sizeLine = text(sizeChange, 12, textMuted, false);
+        sizeLine.setMaxLines(2);
+        LinearLayout.LayoutParams sizeLp = new LinearLayout.LayoutParams(-1, -2); sizeLp.topMargin = dp(8);
+        shell.addView(sizeLine, sizeLp);
+      }
     }
     // Both kinds at once: the release stays the headline and the pending content is
     // announced as its own compact block instead of a second dialog.
@@ -526,6 +601,34 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     }
     TextView journey = text(copy[appUpdate ? 20 : 21], 11, accentInk, true);
     LinearLayout.LayoutParams journeyLp = new LinearLayout.LayoutParams(-1, -2); journeyLp.topMargin = dp(14); shell.addView(journey, journeyLp);
+    // The release notes are the only part that can be long, so they get their own
+    // scroll area inside the notice. The notice itself never scrolls: the version,
+    // the actions and the byte progress stay where they are while the notes move.
+    boolean appNotes = appUpdate && releaseNotes != null && !releaseNotes.isEmpty();
+    boolean contentNotes = dataUpdate && dataNotes != null && !dataNotes.isEmpty();
+    if (appNotes || contentNotes) {
+      notesBody = new LinearLayout(this); notesBody.setOrientation(LinearLayout.VERTICAL); notesBody.setLayoutDirection(getResources().getConfiguration().getLayoutDirection());
+      if (appNotes) {
+        notesBody.addView(notesHeading(releaseNotes.heading, 0));
+        notesCategories(notesBody, releaseNotes.labels, releaseNotes.notes);
+      }
+      // A data release documents itself: its own version, its publication date and the
+      // verified catalog identity, followed by the categorized data changelog.
+      if (contentNotes) {
+        notesBody.addView(notesHeading(dataNotes.heading, appNotes ? dp(20) : 0));
+        notesBody.addView(notesLine(String.format(locale, dataNotes.versionLine, dataNotes.dataVersion, dataNotes.publishedAt), dp(8), accentInk));
+        notesBody.addView(notesLine(String.format(locale, dataNotes.verifiedLine, String.valueOf(dataNotes.fileCount), megabytes(dataNotes.totalSizeBytes), dataNotes.revision.substring(0, 8)), dp(4), textMuted));
+        notesCategories(notesBody, dataNotes.labels, dataNotes.notes);
+      }
+      notesScroll = new android.widget.ScrollView(this);
+      notesScroll.setFillViewport(false); notesScroll.setVerticalScrollBarEnabled(true);
+      notesScroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+      notesScroll.setBackground(round(blend(surface, textPrimary, .05d), 14));
+      notesScroll.setPadding(dp(12), dp(10), dp(12), dp(10)); notesScroll.setClipToPadding(false);
+      notesScroll.addView(notesBody, new android.widget.FrameLayout.LayoutParams(-1, -2));
+      LinearLayout.LayoutParams notesScrollLp = new LinearLayout.LayoutParams(-1, dp(160)); notesScrollLp.topMargin = dp(10);
+      shell.addView(notesScroll, notesScrollLp);
+    }
     status = text("", 13, textMuted, false); status.setVisibility(View.GONE); LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2); statusLp.topMargin = dp(14); shell.addView(status, statusLp);
 
     LinearLayout progressWrap = new LinearLayout(this); progressWrap.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(-1, -2); progressLp.topMargin = dp(12); shell.addView(progressWrap, progressLp);
@@ -558,9 +661,10 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     // progress is watchable; it closes when Android's installer takes over.
     updateNow.setOnClickListener(view -> startDownload());
     dialog.setOnDismissListener(ignored -> finish());
-    android.widget.ScrollView scroll = new android.widget.ScrollView(this);
-    scroll.setFillViewport(false); scroll.addView(shell);
-    dialog.setContentView(scroll);
+    // The notice is not a scrolling page: its root is the card itself, and only the
+    // release notes inside it scroll. The dialog is a little taller than before so a
+    // full release note fits without pushing the actions off the card.
+    dialog.setContentView(shell);
     dialog.show();
     Window window = dialog.getWindow();
     if (window != null) {
@@ -568,9 +672,22 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
       window.setDimAmount(.72f);
       window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
       if (Build.VERSION.SDK_INT >= 31) { window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND); window.setBackgroundBlurRadius(dp(28)); }
+      float heightFraction = .92f;
       int width = Math.min(dp(440), (int) (getResources().getDisplayMetrics().widthPixels * .89f));
+      int maxHeight = (int) (getResources().getDisplayMetrics().heightPixels * heightFraction);
       shell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-      window.setLayout(width, Math.min(shell.getMeasuredHeight(), (int) (getResources().getDisplayMetrics().heightPixels * .85f)));
+      // Long notes shrink the notes area, never the actions: the notice always fits.
+      if (notesScroll != null && notesBody != null) {
+        int natural = notesBody.getMeasuredHeight() + notesScroll.getPaddingTop() + notesScroll.getPaddingBottom();
+        int cap = Math.min(dp(280), Math.max(dp(104), (int) (getResources().getDisplayMetrics().heightPixels * .34f)));
+        setNotesHeight(Math.min(natural, cap));
+        shell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        for (int step = 0; step < 24 && shell.getMeasuredHeight() > maxHeight && notesHeight() > dp(104); step++) {
+          setNotesHeight(notesHeight() - dp(12));
+          shell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        }
+      }
+      window.setLayout(width, Math.min(shell.getMeasuredHeight(), maxHeight));
     }
     shell.setAlpha(0f); shell.setScaleX(.965f); shell.setScaleY(.965f); shell.setTranslationY(dp(18));
     shell.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setStartDelay(36).setDuration(240).setInterpolator(new DecelerateInterpolator(1.65f)).start();

@@ -65,6 +65,17 @@ public final class DceArchiveUpdates {
   static final String CONTENT_DIRECTORY = "dexcore-archive-content";
   private static final int MAX_CATALOG_FILES = 64;
   private static final long MAX_CATALOG_TOTAL_BYTES = 68719476736L;
+  // Every release carries a categorized changelog in the 20 app languages, generated
+  // by the archive and signed into the descriptor. The bounds below mirror the
+  // publisher: a block the client would refuse must never be signed.
+  private static final int MAX_CHANGELOG_JSON_BYTES = 24576;
+  private static final int MAX_CHANGELOG_TABLES = 21;
+  private static final int MAX_CHANGELOG_CATEGORIES = 12;
+  private static final int MAX_CHANGELOG_ENTRIES = 12;
+  private static final int MAX_CHANGELOG_ENTRY_CHARS = 240;
+  private static final int MAX_CHANGELOG_LABEL_CHARS = 120;
+  // The data (content) changelog is a separate, smaller block inside the catalog.
+  private static final int MAX_CONTENT_CHANGELOG_JSON_BYTES = 16384;
   private static final long FOREGROUND_POLL_INTERVAL_MS = 30_000L;
   // A visible update Activity receives determinate byte progress at a bounded
   // rate so a slow link and a fast link both look smooth without flooding the
@@ -297,6 +308,187 @@ public final class DceArchiveUpdates {
       URL endpoint = endpointUrl();
       String path = endpoint.getPath();
       return endpoint.getProtocol() + "://" + endpoint.getHost() + path.substring(0, path.lastIndexOf('/') + 1);
+    } catch (Exception invalid) { return null; }
+  }
+
+  /** One localized view of the signed per-version changelog. */
+  static final class Changelog {
+    final String heading; final String sizeLine; final String larger; final String smaller; final String same;
+    final String[] labels; final String[][] notes;
+    Changelog(String heading, String sizeLine, String larger, String smaller, String same, String[] labels, String[][] notes) {
+      this.heading = heading; this.sizeLine = sizeLine; this.larger = larger; this.smaller = smaller; this.same = same;
+      this.labels = labels; this.notes = notes;
+    }
+    boolean isEmpty() {
+      for (String[] group : notes) if (group.length > 0) return false;
+      return true;
+    }
+    int entryCount() { int total = 0; for (String[] group : notes) total += group.length; return total; }
+  }
+
+  // The archive generates every release note in the 20 app languages, so the notice
+  // only has to pick the table the device asks for. A device language the archive
+  // does not ship falls back to the language table and then to English.
+  private static String[] changelogLanguageKeys(Locale locale) {
+    String language = locale == null ? "en" : locale.getLanguage().toLowerCase(Locale.US);
+    String region = locale == null ? "" : locale.getCountry().toUpperCase(Locale.US);
+    if (language.isEmpty()) language = "en";
+    if ("zh".equals(language) && ("TW".equals(region) || "HK".equals(region) || "MO".equals(region))) {
+      return new String[] { "zh-Hant", "zh", "en" };
+    }
+    return new String[] { language, "en" };
+  }
+
+  /**
+   * The changelog block of exactly this release, localized for the device locale,
+   * or null when the descriptor carries none or the block is not trustworthy.
+   */
+  static Changelog changelogFor(JSONObject update, Locale locale) {
+    try {
+      Object raw = update == null ? null : update.opt("changelog");
+      if (!(raw instanceof JSONObject)) return null;
+      JSONObject block = (JSONObject) raw;
+      if (block.toString().length() > MAX_CHANGELOG_JSON_BYTES) return null;
+      // The notes describe one release: a block for another versionCode is stale.
+      Object code = block.get("versionCode");
+      if (!(code instanceof Number) || ((Number) code).longValue() != requirePositiveLong(update, "versionCode")) return null;
+      JSONArray categories = block.getJSONArray("categories");
+      if (categories.length() == 0 || categories.length() > MAX_CHANGELOG_CATEGORIES) return null;
+      String[] names = new String[categories.length()];
+      for (int index = 0; index < names.length; index++) {
+        Object value = categories.get(index);
+        if (!(value instanceof String) || ((String) value).isEmpty()) return null;
+        names[index] = (String) value;
+      }
+      JSONObject notices = block.getJSONObject("notices");
+      if (notices.length() == 0 || notices.length() > MAX_CHANGELOG_TABLES) return null;
+      JSONObject notice = null;
+      for (String key : changelogLanguageKeys(locale)) {
+        Object candidate = notices.opt(key);
+        if (candidate instanceof JSONObject) { notice = (JSONObject) candidate; break; }
+      }
+      if (notice == null) return null;
+      String heading = requireBoundedText(notice, "heading", MAX_CHANGELOG_LABEL_CHARS);
+      String sizeLine = requireBoundedText(notice, "sizeLine", MAX_CHANGELOG_LABEL_CHARS);
+      String larger = requireBoundedText(notice, "larger", MAX_CHANGELOG_LABEL_CHARS);
+      String smaller = requireBoundedText(notice, "smaller", MAX_CHANGELOG_LABEL_CHARS);
+      String same = requireBoundedText(notice, "same", MAX_CHANGELOG_LABEL_CHARS);
+      JSONObject labels = notice.getJSONObject("labels");
+      JSONObject notes = notice.getJSONObject("notes");
+      String[] labelValues = new String[names.length];
+      String[][] noteValues = new String[names.length][];
+      int total = 0;
+      for (int index = 0; index < names.length; index++) {
+        String category = names[index];
+        labelValues[index] = requireBoundedText(labels, category, MAX_CHANGELOG_LABEL_CHARS);
+        JSONArray values = notes.getJSONArray(category);
+        if (values.length() == 0 || values.length() > MAX_CHANGELOG_ENTRIES) return null;
+        String[] entries = new String[values.length()];
+        for (int entry = 0; entry < entries.length; entry++) {
+          Object value = values.get(entry);
+          if (!(value instanceof String)) return null;
+          String text = ((String) value).trim();
+          if (text.isEmpty() || text.length() > MAX_CHANGELOG_ENTRY_CHARS) return null;
+          entries[entry] = text;
+        }
+        noteValues[index] = entries;
+        total += entries.length;
+      }
+      if (total == 0) return null;
+      return new Changelog(heading, sizeLine, larger, smaller, same, labelValues, noteValues);
+    } catch (Exception invalid) { return null; }
+  }
+
+  private static String requireBoundedText(JSONObject source, String key, int limit) throws Exception {
+    String value = requireJsonString(source, key).trim();
+    if (value.isEmpty() || value.length() > limit) throw new java.io.IOException("Invalid changelog text");
+    return value;
+  }
+
+  /** One localized view of the signed data (content) changelog of this release. */
+  static final class DataChangelog {
+    final String heading; final String versionLine; final String verifiedLine;
+    final String dataVersion; final String publishedAt; final String revision;
+    final int fileCount; final long totalSizeBytes;
+    final String[] labels; final String[][] notes;
+    DataChangelog(String heading, String versionLine, String verifiedLine, String dataVersion, String publishedAt,
+                  String revision, int fileCount, long totalSizeBytes, String[] labels, String[][] notes) {
+      this.heading = heading; this.versionLine = versionLine; this.verifiedLine = verifiedLine;
+      this.dataVersion = dataVersion; this.publishedAt = publishedAt; this.revision = revision;
+      this.fileCount = fileCount; this.totalSizeBytes = totalSizeBytes; this.labels = labels; this.notes = notes;
+    }
+    boolean isEmpty() {
+      for (String[] group : notes) if (group.length > 0) return false;
+      return true;
+    }
+  }
+
+  /**
+   * The data changelog of the pending content, localized for the device, or null when
+   * this descriptor carries none. Every claim is cross-checked against the catalog
+   * itself: a block that does not describe exactly the verified bytes is dropped.
+   */
+  static DataChangelog dataChangelogFor(JSONObject update, Locale locale) {
+    try {
+      JSONObject catalog = catalogFor(update);
+      Object raw = catalog == null ? null : catalog.opt("changelog");
+      if (!(raw instanceof JSONObject)) return null;
+      JSONObject block = (JSONObject) raw;
+      if (block.toString().length() > MAX_CONTENT_CHANGELOG_JSON_BYTES) return null;
+      if (!"content".equals(requireJsonString(block, "kind"))) return null;
+      String dataVersion = requireJsonString(block, "dataVersion").trim();
+      if (!dataVersion.matches("\\d{4}\\.\\d{2}\\.\\d{2}(\\.\\d{1,3})?")) return null;
+      String publishedAt = requireJsonString(block, "publishedAt").trim();
+      if (!publishedAt.matches("\\d{4}-\\d{2}-\\d{2}")) return null;
+      String revision = requireJsonString(block, "revision").trim();
+      if (!revision.matches("[0-9a-f]{8,64}") || !revision.equals(requireJsonString(catalog, "revision"))) return null;
+      int fileCount = (int) requirePositiveLong(block, "fileCount");
+      long totalSizeBytes = requirePositiveLong(block, "totalSizeBytes");
+      if (fileCount != catalog.getJSONArray("files").length()) return null;
+      if (totalSizeBytes != requirePositiveLong(catalog, "totalSizeBytes")) return null;
+      JSONArray categories = block.getJSONArray("categories");
+      if (categories.length() == 0 || categories.length() > MAX_CHANGELOG_CATEGORIES) return null;
+      String[] names = new String[categories.length()];
+      for (int index = 0; index < names.length; index++) {
+        Object value = categories.get(index);
+        if (!(value instanceof String) || ((String) value).isEmpty()) return null;
+        names[index] = (String) value;
+      }
+      JSONObject notices = block.getJSONObject("notices");
+      if (notices.length() == 0 || notices.length() > MAX_CHANGELOG_TABLES) return null;
+      JSONObject notice = null;
+      for (String key : changelogLanguageKeys(locale)) {
+        Object candidate = notices.opt(key);
+        if (candidate instanceof JSONObject) { notice = (JSONObject) candidate; break; }
+      }
+      if (notice == null) return null;
+      String heading = requireBoundedText(notice, "heading", MAX_CHANGELOG_LABEL_CHARS);
+      String versionLine = requireBoundedText(notice, "versionLine", MAX_CHANGELOG_LABEL_CHARS);
+      String verifiedLine = requireBoundedText(notice, "verifiedLine", MAX_CHANGELOG_LABEL_CHARS);
+      JSONObject labels = notice.getJSONObject("labels");
+      JSONObject notes = notice.getJSONObject("notes");
+      String[] labelValues = new String[names.length];
+      String[][] noteValues = new String[names.length][];
+      int total = 0;
+      for (int index = 0; index < names.length; index++) {
+        String category = names[index];
+        labelValues[index] = requireBoundedText(labels, category, MAX_CHANGELOG_LABEL_CHARS);
+        JSONArray values = notes.getJSONArray(category);
+        if (values.length() == 0 || values.length() > MAX_CHANGELOG_ENTRIES) return null;
+        String[] entries = new String[values.length()];
+        for (int entry = 0; entry < entries.length; entry++) {
+          Object value = values.get(entry);
+          if (!(value instanceof String)) return null;
+          String text = ((String) value).trim();
+          if (text.isEmpty() || text.length() > MAX_CHANGELOG_ENTRY_CHARS) return null;
+          entries[entry] = text;
+        }
+        noteValues[index] = entries;
+        total += entries.length;
+      }
+      if (total == 0) return null;
+      return new DataChangelog(heading, versionLine, verifiedLine, dataVersion, publishedAt, revision,
+                               fileCount, totalSizeBytes, labelValues, noteValues);
     } catch (Exception invalid) { return null; }
   }
 
