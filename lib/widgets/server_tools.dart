@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'dpad_field.dart';
+
 import '../diagnostics.dart';
 import '../main.dart';
 import '../panels.dart';
@@ -19,6 +21,10 @@ class ServerToolsSection extends StatefulWidget {
 class _ServerToolsSectionState extends State<ServerToolsSection> {
   late final TextEditingController _server;
   late final TextEditingController _list;
+  // D-pad: both fields must be leaveable with a remote; the list field is
+  // multi-line, so up/down stay inside it until the caret reaches the edge.
+  late final FocusNode _serverFocus;
+  late final FocusNode _listFocus;
   bool _listOpen = false;
   bool _diagBusy = false;
   bool _listBusy = false;
@@ -32,12 +38,16 @@ class _ServerToolsSectionState extends State<ServerToolsSection> {
     super.initState();
     _server = TextEditingController(text: appState.server);
     _list = TextEditingController();
+    _serverFocus = dpadTextFocusNode(controller: _server);
+    _listFocus = dpadTextFocusNode(controller: _list);
   }
 
   @override
   void dispose() {
     _server.dispose();
     _list.dispose();
+    _serverFocus.dispose();
+    _listFocus.dispose();
     super.dispose();
   }
 
@@ -102,6 +112,7 @@ class _ServerToolsSectionState extends State<ServerToolsSection> {
         children: [
           TextField(
             controller: _server,
+            focusNode: _serverFocus,
             decoration: const InputDecoration(
               labelText: 'Server address',
               hintText: 'http://host:8080',
@@ -181,6 +192,7 @@ class _ServerToolsSectionState extends State<ServerToolsSection> {
             const SizedBox(height: 12),
             TextField(
               controller: _list,
+              focusNode: _listFocus,
               minLines: 4,
               maxLines: 8,
               decoration: const InputDecoration(

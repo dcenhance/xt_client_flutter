@@ -8,6 +8,7 @@ import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/app_mark.dart';
+import '../widgets/dpad_field.dart';
 import '../widgets/focus_ring.dart';
 import 'player_screen.dart';
 import 'settings_sheet.dart';
@@ -32,7 +33,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
-  final _searchFocus = FocusNode();
+  // D-pad save: a remote must be able to leave the search box again.
+  late final _searchFocus = dpadTextFocusNode(controller: _searchController);
   final _gridFocus = FocusNode();
   bool _searchOpen = false;
   int _mobileIndex = 0;

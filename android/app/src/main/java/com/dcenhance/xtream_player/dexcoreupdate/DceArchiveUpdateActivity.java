@@ -581,7 +581,10 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     TextView title = text(appUpdate ? copy[0] : copy[13], 25, textPrimary, true); title.setMaxLines(2); LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2); titleLp.topMargin = dp(12); shell.addView(title, titleLp);
     String bodyText = appUpdate ? String.format(locale, copy[1], version) : String.format(locale, copy[14], DceArchiveUpdates.catalogSummaryLabel(update), megabytes(DceArchiveUpdates.catalogTotalBytes(update)) + " MB");
     TextView body = text(bodyText, 15, textMuted, false); body.setLineSpacing(dp(4), 1f); body.setMaxLines(3); LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(-1, -2); bodyLp.topMargin = dp(8); shell.addView(body, bodyLp);
-    if (appUpdate) {
+    // The version the notice is talking about is always named, and the measured size
+    // difference between the device's APK and the signed release is always in the card,
+    // even when only additional content is pending.
+    if (appUpdate || releaseNotes != null) {
       TextView versionChip = text(version, 12, textPrimary, true); versionChip.setGravity(Gravity.CENTER); versionChip.setPadding(dp(12), 0, dp(12), 0); versionChip.setBackground(round(blend(surface, textPrimary, .10d), 12)); LinearLayout.LayoutParams chipLp = new LinearLayout.LayoutParams(-2, dp(32)); chipLp.topMargin = dp(18); shell.addView(versionChip, chipLp);
       // Whether the release is bigger or smaller than what the device runs right now
       // is a real answer, not an estimate: installed APK bytes against the signed size.
@@ -604,7 +607,10 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     // The release notes are the only part that can be long, so they get their own
     // scroll area inside the notice. The notice itself never scrolls: the version,
     // the actions and the byte progress stay where they are while the notes move.
-    boolean appNotes = appUpdate && releaseNotes != null && !releaseNotes.isEmpty();
+    // "What's new" belongs in every notice: the signed changelog of the release the
+    // descriptor describes is shown even when the app itself is already current and
+    // only its content is pending.
+    boolean appNotes = releaseNotes != null && !releaseNotes.isEmpty();
     boolean contentNotes = dataUpdate && dataNotes != null && !dataNotes.isEmpty();
     if (appNotes || contentNotes) {
       notesBody = new LinearLayout(this); notesBody.setOrientation(LinearLayout.VERTICAL); notesBody.setLayoutDirection(getResources().getConfiguration().getLayoutDirection());
@@ -639,6 +645,11 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
     progressBar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(blend(surface, textPrimary, .14d)));
     LinearLayout.LayoutParams barLp = new LinearLayout.LayoutParams(-1, dp(6)); barLp.topMargin = dp(8); progressWrap.addView(progressBar, barLp);
 
+    // The taller notice spends its extra height above the actions, so the buttons sit
+    // at the bottom edge of the card instead of floating in the middle of it.
+    View filler = new View(this);
+    shell.addView(filler, new LinearLayout.LayoutParams(-1, 0, 1f));
+
     LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2); actionsLp.topMargin = dp(26); shell.addView(actions, actionsLp);
     // The primary action always matches what is pending: the release, or the
     // content when the installed build is already current.
@@ -672,22 +683,28 @@ public final class DceArchiveUpdateActivity extends Activity implements DceArchi
       window.setDimAmount(.72f);
       window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
       if (Build.VERSION.SDK_INT >= 31) { window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND); window.setBackgroundBlurRadius(dp(28)); }
-      float heightFraction = .92f;
+      // The notice is given real vertical room: nearly the whole screen, and never a
+      // cramped card for a short release. A weighted spacer keeps the actions at the
+      // bottom of that taller surface instead of leaving a gap under the buttons.
+      float heightFraction = .97f;
+      float minimumFraction = .60f;
       int width = Math.min(dp(440), (int) (getResources().getDisplayMetrics().widthPixels * .89f));
-      int maxHeight = (int) (getResources().getDisplayMetrics().heightPixels * heightFraction);
+      int screenHeight = getResources().getDisplayMetrics().heightPixels;
+      int maxHeight = (int) (screenHeight * heightFraction);
+      int minHeight = (int) (screenHeight * minimumFraction);
       shell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
       // Long notes shrink the notes area, never the actions: the notice always fits.
       if (notesScroll != null && notesBody != null) {
         int natural = notesBody.getMeasuredHeight() + notesScroll.getPaddingTop() + notesScroll.getPaddingBottom();
-        int cap = Math.min(dp(280), Math.max(dp(104), (int) (getResources().getDisplayMetrics().heightPixels * .34f)));
+        int cap = Math.min(dp(560), Math.max(dp(180), (int) (screenHeight * .62f)));
         setNotesHeight(Math.min(natural, cap));
         shell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-        for (int step = 0; step < 24 && shell.getMeasuredHeight() > maxHeight && notesHeight() > dp(104); step++) {
+        for (int step = 0; step < 32 && shell.getMeasuredHeight() > maxHeight && notesHeight() > dp(150); step++) {
           setNotesHeight(notesHeight() - dp(12));
           shell.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         }
       }
-      window.setLayout(width, Math.min(shell.getMeasuredHeight(), maxHeight));
+      window.setLayout(width, Math.max(Math.min(shell.getMeasuredHeight(), maxHeight), minHeight));
     }
     shell.setAlpha(0f); shell.setScaleX(.965f); shell.setScaleY(.965f); shell.setTranslationY(dp(18));
     shell.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setStartDelay(36).setDuration(240).setInterpolator(new DecelerateInterpolator(1.65f)).start();

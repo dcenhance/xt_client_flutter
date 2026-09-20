@@ -1,7 +1,7 @@
 name: xtream_player
 description: Spectre — a cross-platform Xtream-Codes IPTV client.
 publish_to: 'none'
-version: 0.7.4+18
+version: 0.7.5+19
 
 environment:
   sdk: ^3.13.4

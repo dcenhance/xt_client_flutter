@@ -4,6 +4,7 @@ import '../main.dart';
 import '../panels.dart';
 import '../store.dart';
 import '../theme.dart';
+import '../widgets/dpad_field.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/motion.dart';
 import '../xtream_client.dart';
@@ -27,29 +28,69 @@ class _LoginScreenState extends State<LoginScreen> {
   late final TextEditingController _pass;
   late final FocusNode _userFocus;
   late final FocusNode _passFocus;
+  final ScrollController _scroll = ScrollController();
+  // Pointer-only control: it stays tappable but out of the arrow/D-pad order.
+  final FocusNode _revealFocus = FocusNode(skipTraversal: true);
+  final GlobalKey _errorKey = GlobalKey();
   String? _server;
   bool _obscure = true;
+  Object? _seenError;
 
   @override
   void initState() {
     super.initState();
     _user = TextEditingController(text: appState.username);
     _pass = TextEditingController(text: appState.password);
-    _userFocus = FocusNode()..addListener(_onFocusChanged);
-    _passFocus = FocusNode()..addListener(_onFocusChanged);
+    // A remote has no pointer: the arrow keys must walk the form, but a focused
+    // text field swallows them for the caret. Both nodes therefore get their own
+    // key handler — it runs before the field's editing shortcuts, so up/down
+    // still move the focus, while left/right keep editing until the caret hits
+    // the edge of the text.
+    _userFocus = dpadTextFocusNode(controller: _user)..addListener(_onFocusChanged);
+    _passFocus = dpadTextFocusNode(controller: _pass)..addListener(_onFocusChanged);
+    appState.addListener(_onAppStateChanged);
   }
 
   void _onFocusChanged() => setState(() {});
 
   @override
   void dispose() {
+    appState.removeListener(_onAppStateChanged);
     _userFocus.removeListener(_onFocusChanged);
     _passFocus.removeListener(_onFocusChanged);
     _userFocus.dispose();
     _passFocus.dispose();
     _user.dispose();
     _pass.dispose();
+    _scroll.dispose();
+    _revealFocus.dispose();
     super.dispose();
+  }
+
+  /// Focus lands back in the password field after a failed attempt: on a TV the
+  /// user is looking at the screen, not at a keyboard, and retyping is the next
+  /// thing they do.
+  void _onAppStateChanged() {
+    final error = appState.error;
+    if (error != null && error != _seenError) {
+      _seenError = error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _passFocus.requestFocus();
+        _revealError();
+      });
+    }
+  }
+
+  void _revealError() {
+    final target = _errorKey.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      alignment: 1,
+    );
   }
 
   Future<void> _submit() async {
@@ -144,10 +185,15 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
+              controller: _scroll,
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
-                child: ListenableBuilder(
+                // A vertical form read top to bottom: the spatial policy walks
+                // it with a D-pad in exactly that order.
+                child: FocusTraversalGroup(
+                  policy: ReadingOrderTraversalPolicy(),
+                  child: ListenableBuilder(
                   listenable: appState,
                   builder: (context, _) => Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,6 +223,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: TextField(
                             controller: _user,
                             focusNode: _userFocus,
+                            // The screen opens with focus on the first field, so
+                            // a remote works from the very first key press.
+                            autofocus: true,
                             autocorrect: false,
                             textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
@@ -199,6 +248,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           focused: _passFocus.hasFocus,
                           trailing: IconButton(
                             tooltip: _obscure ? 'Show password' : 'Hide password',
+                            // Pointer affordance only: on a remote/arrow path it
+                            // would be a pointless stop between the two fields.
+                            focusNode: _revealFocus,
                             splashRadius: 18,
                             icon: Icon(
                               _obscure ? Icons.visibility_off : Icons.visibility,
@@ -291,6 +343,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             : Padding(
                                 padding: const EdgeInsets.only(top: 16),
                                 child: ShakeOnChange(
+                                  key: _errorKey,
                                   tick: appState.error,
                                   child: _ErrorBox(
                                     message: appState.error!,
@@ -299,7 +352,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -444,14 +498,15 @@ class _FieldShell extends StatelessWidget {
       ),
       child: Row(
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              icon,
-              key: ValueKey(focused),
-              size: 18,
-              color: focused ? AppTheme.accent : AppTheme.muted,
+          // Colour-only animation: no keys, so nothing can collide while two
+          // fields change state in the same frame.
+          TweenAnimationBuilder<Color?>(
+            tween: ColorTween(
+              begin: AppTheme.muted,
+              end: focused ? AppTheme.accent : AppTheme.muted,
             ),
+            duration: const Duration(milliseconds: 200),
+            builder: (context, color, _) => Icon(icon, size: 18, color: color),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -490,46 +545,46 @@ class _RememberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: value ? AppTheme.accent.withValues(alpha: 0.16) : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: value ? AppTheme.accent : AppTheme.border,
-                  width: value ? 1.4 : 1,
-                ),
-              ),
-              child: AnimatedScale(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutBack,
-                scale: value ? 1 : 0.4,
-                child: Icon(Icons.check, size: 13, color: AppTheme.accent),
+    // One focus node for the whole row: OK/Enter toggles it, a tap toggles it,
+    // and the ring shows where the remote is.
+    return FocusRing(
+      borderRadius: 12,
+      onSelect: () => onChanged(!value),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: value ? AppTheme.accent.withValues(alpha: 0.16) : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: value ? AppTheme.accent : AppTheme.border,
+                width: value ? 1.4 : 1,
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text('Remember me',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: AppTheme.text)),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutBack,
+              scale: value ? 1 : 0.4,
+              child: Icon(Icons.check, size: 13, color: AppTheme.accent),
             ),
-            Text('fills in next time',
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('Remember me',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: AppTheme.muted)),
-            const SizedBox(width: 4),
-          ],
-        ),
+                style: TextStyle(fontSize: 13, color: AppTheme.text)),
+          ),
+          Text('fills in next time',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+          const SizedBox(width: 4),
+        ],
       ),
     );
   }
@@ -598,28 +653,35 @@ class _PanelButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = automatic ? AppTheme.muted : AppTheme.accent;
     return Center(
-      child: TextButton.icon(
-        onPressed: enabled ? onTap : null,
-        icon: Icon(
-          automatic ? Icons.auto_awesome_outlined : Icons.dns_outlined,
-          size: 16,
-          color: automatic ? AppTheme.muted : AppTheme.accent,
-        ),
-        label: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SizeTransition(sizeFactor: animation, axis: Axis.horizontal, child: child),
-          ),
-          child: Text(
-            label,
-            key: ValueKey(label),
-            style: TextStyle(
-              fontSize: 12.5,
-              color: automatic ? AppTheme.muted : AppTheme.accent,
+      child: FocusRing(
+        borderRadius: 12,
+        onSelect: enabled ? onTap : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              automatic ? Icons.auto_awesome_outlined : Icons.dns_outlined,
+              size: 16,
+              color: color,
             ),
-          ),
+            const SizedBox(width: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SizeTransition(
+                    sizeFactor: animation, axis: Axis.horizontal, child: child),
+              ),
+              child: Text(
+                label,
+                key: ValueKey(label),
+                style: TextStyle(fontSize: 12.5, color: color),
+              ),
+            ),
+          ],
         ),
       ),
     );
