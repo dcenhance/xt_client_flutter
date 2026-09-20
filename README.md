@@ -47,12 +47,14 @@ application ID, the executable and the repository stay the same so existing inst
 
 ## What it does
 
-The app is **Spectre**: a hooded silhouette that carries the play glyph, drawn as a few large
-shapes on a deep-black squircle so it still reads at 48 px.
-Six marks ship with the app — **Orbit**, **Belt**, **Monogram**, **Prism**, **Aperture** and
-**Stars** — and **Account → App icon** switches between them live; the choice is remembered and
-applies everywhere the mark appears. The default (Orbit) is also the Android launcher icon
-(including an adaptive icon), the Windows `.ico`, the macOS/iOS app-icon sets and the KDE menu entry.
+The launcher icon is a low-poly **eagle** in gold on black, built from a few large shapes so it
+still reads at 48 px. It ships as an Android adaptive icon with its own monochrome layer for
+Material You themed icons plus legacy mipmaps for every density, a Windows `.ico`, the macOS/iOS
+app-icon sets and the KDE menu entry.
+
+Inside the app, **Account → App icon** switches between six gold marks — **Orbit**, **Belt**,
+**Monogram**, **Prism**, **Aperture** and **Stars** — live and remembered. The eagle is the
+identity outside the app; the marks are the one you look at while using it.
 
 ### One app, two interface styles
 
@@ -217,7 +219,7 @@ Requirements per platform are Flutter's own; nothing extra.
 ```bash
 flutter pub get
 flutter build linux --release
-./build/linux/x64/release/bundle/xtream_player
+./build/linux/x64/release/bundle/spectre
 ```
 
 A ready launcher for the KDE menu:

@@ -16,12 +16,13 @@ PNG="$HOME/.local/share/icons/hicolor/512x512/apps/spectre.png"
 APPS="$HOME/.local/share/applications"
 mkdir -p "$APPS"
 
-rm -f "$APPS/$APPS/orion-player.desktop" "$APPS/aurum.desktop" "$APPS/vermeil.desktop"
+rm -f "$APPS/xtream-player.desktop" "$APPS/orion-player.desktop" "$APPS/aurum.desktop"
+rm -f "$APPS/vermeil.desktop"
 
 # install the icon into the theme so menus and docks pick it up
-if [ -s "$HERE/assets/spectre-mark.png" ]; then
+if [ -s "$HERE/assets/branding/spectre_icon_512.png" ]; then
   mkdir -p "$(dirname "$PNG")"
-  cp "$HERE/assets/spectre-mark.png" "$PNG"
+  cp "$HERE/assets/branding/spectre_icon_512.png" "$PNG"
 fi
 
 cat > "$APPS/spectre.desktop" <<DESKTOP
