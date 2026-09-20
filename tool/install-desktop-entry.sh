@@ -3,7 +3,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="$HERE/build/linux/x64/release/bundle/xtream_player"
+BIN="$HERE/build/linux/x64/release/bundle/spectre"
 
 if [[ ! -x "$BIN" ]]; then
   echo "Binary not found at $BIN" >&2
@@ -16,7 +16,7 @@ PNG="$HOME/.local/share/icons/hicolor/512x512/apps/spectre.png"
 APPS="$HOME/.local/share/applications"
 mkdir -p "$APPS"
 
-rm -f "$APPS/xtream-player.desktop" "$APPS/orion-player.desktop" "$APPS/aurum.desktop" "$APPS/vermeil.desktop"
+rm -f "$APPS/$APPS/orion-player.desktop" "$APPS/aurum.desktop" "$APPS/vermeil.desktop"
 
 # install the icon into the theme so menus and docks pick it up
 if [ -s "$HERE/assets/spectre-mark.png" ]; then

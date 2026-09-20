@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$(grep '^version:' "$ROOT/pubspec.yaml" | awk '{print $2}' | cut -d+ -f1)"
-NAME="xtream-player"
+NAME="spectre"
 ARCH_RAW="$(uname -m)"
 case "$ARCH_RAW" in
   x86_64) DEB_ARCH=amd64; RPM_ARCH=x86_64; APPIMAGE_ARCH=x86_64 ;;
@@ -18,7 +18,7 @@ BUNDLE="$ROOT/build/linux/x64/release/bundle"
 OUT="$ROOT/build/dist"
 TOOLS="${TOOLS_DIR:-$HOME/.cache/tools}"
 
-[[ -x "$BUNDLE/xtream_player" ]] || { echo "build the bundle first: flutter build linux --release" >&2; exit 1; }
+[[ -x "$BUNDLE/spectre" ]] || { echo "build the bundle first: flutter build linux --release" >&2; exit 1; }
 mkdir -p "$OUT"
 rm -f "$OUT/$SLUG".* "$OUT/${NAME}_${VERSION}_"* "$OUT/${NAME}-${VERSION}-1".*
 
@@ -32,7 +32,7 @@ if command -v patchelf >/dev/null; then
   for so in "$PATCHED"/lib/*.so; do
     patchelf --set-rpath '$ORIGIN' "$so" 2>/dev/null || true
   done
-  patchelf --set-rpath '$ORIGIN/lib' "$PATCHED/xtream_player" 2>/dev/null || true
+  patchelf --set-rpath '$ORIGIN/lib' "$PATCHED/spectre" 2>/dev/null || true
 else
   echo "   warning: patchelf missing; .rpm build may fail its rpath check" >&2
 fi
@@ -80,9 +80,9 @@ install -d "$DEBROOT/opt/$NAME" "$DEBROOT/usr/bin" \
            "$DEBROOT/usr/share/icons/hicolor/256x256/apps" \
            "$DEBROOT/usr/share/doc/$NAME"
 cp -r "$BUNDLE/." "$DEBROOT/opt/$NAME/"
-ln -s "/opt/$NAME/xtream_player" "$DEBROOT/usr/bin/$NAME"
+ln -s "/opt/$NAME/spectre" "$DEBROOT/usr/bin/$NAME"
 cp "$OUT/$NAME.png" "$DEBROOT/usr/share/icons/hicolor/256x256/apps/$NAME.png"
-sed "s|^Exec=.*|Exec=/opt/$NAME/xtream_player|" "$OUT/$NAME.desktop" \
+sed "s|^Exec=.*|Exec=/opt/$NAME/spectre|" "$OUT/$NAME.desktop" \
   > "$DEBROOT/usr/share/applications/$NAME.desktop"
 SIZE="$(du -sk "$DEBROOT/opt/$NAME" | cut -f1)"
 cat > "$DEBROOT/DEBIAN/control" <<CONTROL
@@ -125,8 +125,8 @@ install -d %{buildroot}/opt/$NAME %{buildroot}/usr/bin \\
            %{buildroot}/usr/share/applications \\
            %{buildroot}/usr/share/icons/hicolor/256x256/apps
 cp -r $BUNDLE/. %{buildroot}/opt/$NAME/
-ln -s /opt/$NAME/xtream_player %{buildroot}/usr/bin/$NAME
-sed "s|^Exec=.*|Exec=/opt/$NAME/xtream_player|" $OUT/$NAME.desktop \\
+ln -s /opt/$NAME/spectre %{buildroot}/usr/bin/$NAME
+sed "s|^Exec=.*|Exec=/opt/$NAME/spectre|" $OUT/$NAME.desktop \\
   > %{buildroot}/usr/share/applications/$NAME.desktop
 cp $OUT/$NAME.png %{buildroot}/usr/share/icons/hicolor/256x256/apps/$NAME.png
 
@@ -179,7 +179,7 @@ if [[ "${MPV_PRESENT:-0}" == "0" ]]; then
   echo "   warning: this build host has no libmpv.so.2 - the AppImage will need one on the target" >&2
 fi
 cp "$OUT/$NAME.png" "$APPDIR/$NAME.png"
-sed -e "s|^Exec=.*|Exec=xtream_player|" \
+sed -e "s|^Exec=.*|Exec=spectre|" \
     -e "s|^Comment=.*|Comment=IPTV client for Xtream-Codes panels (needs libmpv)|" \
     "$OUT/$NAME.desktop" > "$APPDIR/$NAME.desktop"
 cat > "$APPDIR/AppRun" <<'APPRUN'
@@ -188,7 +188,7 @@ HERE="$(dirname "$(readlink -f "$0")")"
 # The bundle already finds its own lib/ through RPATH; this covers anything that
 # dlopen()s by soname at runtime.
 export LD_LIBRARY_PATH="$HERE/usr/bin/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$HERE/usr/bin/xtream_player" "$@"
+exec "$HERE/usr/bin/spectre" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 if [[ -x "$TOOLS/appimagetool" ]]; then

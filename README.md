@@ -189,11 +189,11 @@ Every tagged release (`v*`) carries all of these as assets; the CI jobs build th
 | Platform | Format | Notes |
 |---|---|---|
 | Linux | `.AppImage` | single file, `chmod +x` and run; bundles libmpv, no install needed |
-| Linux | `.deb` | Debian/Ubuntu/Mint — `sudo apt install ./xtream-player_*.deb` |
-| Linux | `.rpm` | Fedora/Nobara/openSUSE — `sudo dnf install ./xtream-player-*.rpm` |
-| Linux | `.tar.gz` / `.tar.xz` | portable bundle, run `xtream_player` from the extracted folder |
+| Linux | `.deb` | Debian/Ubuntu/Mint — `sudo apt install ./spectre_*.deb` |
+| Linux | `.rpm` | Fedora/Nobara/openSUSE — `sudo dnf install ./spectre-*.rpm` |
+| Linux | `.tar.gz` / `.tar.xz` | portable bundle, run `spectre` from the extracted folder |
 | Windows | `-setup.exe` | Inno Setup installer: Start-Menu/desktop entry, uninstaller |
-| Windows | `-portable.zip` | unpack anywhere and run `xtream_player.exe` |
+| Windows | `-portable.zip` | unpack anywhere and run `spectre.exe` |
 | Android | `universal.apk` | one APK for every device (also the sideload default) |
 | Android | `arm64-v8a / armeabi-v7a / x86_64 .apk` | smaller per-architecture builds |
 | Android | `.aab` | Play Store upload bundle |
@@ -223,7 +223,7 @@ flutter build linux --release
 A ready launcher for the KDE menu:
 
 ```bash
-./tool/install-desktop-entry.sh      # writes ~/.local/share/applications/xtream-player.desktop
+./tool/install-desktop-entry.sh      # writes ~/.local/share/applications/spectre.desktop
 ```
 
 ### Windows
@@ -233,7 +233,7 @@ Flutter cannot cross-compile, so this runs on a Windows machine (or the CI workf
 ```powershell
 flutter pub get
 flutter build windows --release
-build\windows\x64\runner\Release\xtream_player.exe
+build\windows\x64\runner\Release\spectre.exe
 ```
 
 Everything the app needs (`media_kit` → libmpv, `shared_preferences`) is bundled by those

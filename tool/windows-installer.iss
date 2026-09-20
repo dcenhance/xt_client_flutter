@@ -1,7 +1,7 @@
 ; Inno Setup script for the Windows installer.
 ; Build with:  iscc tool\windows-installer.iss /DAppVersion=0.1.0
 ; Expects:     flutter build windows --release  (build\windows\x64\runner\Release)
-; Produces:    build\dist\xtream-player-<version>-windows-x64-setup.exe
+; Produces:    build\dist\spectre-<version>-windows-x64-setup.exe
 
 #ifndef AppVersion
   #define AppVersion "0.1.0"
@@ -10,7 +10,7 @@
 #define AppName "Spectre"
 #define AppPublisher "dcenhance"
 #define AppURL "https://github.com/dcenhance/xt_client_flutter"
-#define AppExe "xtream_player.exe"
+#define AppExe "spectre.exe"
 #define SourceDir "..\build\windows\x64\runner\Release"
 
 [Setup]
@@ -25,7 +25,7 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\LICENSE
 OutputDir=..\build\dist
-OutputBaseFilename=xtream-player-{#AppVersion}-windows-x64-setup
+OutputBaseFilename=spectre-{#AppVersion}-windows-x64-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
