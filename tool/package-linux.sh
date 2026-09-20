@@ -149,47 +149,39 @@ APPDIR="$ROOT/build/appimage/AppDir"
 rm -rf "$APPDIR"
 install -d "$APPDIR/usr/bin"
 cp -r "$BUNDLE/." "$APPDIR/usr/bin/"
-# Bundle libmpv *and the codec stack it is linked against*.
+# libmpv is deliberately NOT bundled.
 #
-# Shipping libmpv alone is worse than not shipping it: the copy on the build host
-# is linked against that host's ffmpeg soname (an Ubuntu runner gives
-# libavcodec.so.60), so on a distro with a different ffmpeg the loader fails
-# before main() and the whole AppImage is dead. Bundle the transitive closure,
-# but keep graphics/audio/GTK/desktop libs from the host - those must match the
-# running session.
-MPV_LIB="$(ldconfig -p | sed -n 's|.*=> \(.*/libmpv\.so\.2\)$|\1|p' | head -n 1)"
-if [[ -n "$MPV_LIB" && -e "$MPV_LIB" ]]; then
-  APPDIR_LIB="$APPDIR/usr/bin/lib"
-  KEEP_HOST='^(libc|libm|libdl|libpthread|librt|libresolv|libutil|libnsl|ld-linux|libX|libxcb|libxkbcommon|libGL|libEGL|libGLX|libOpenGL|libgbm|libdrm|libwayland|libgtk|libgdk|libglib|libgio|libgobject|libpango|libcairo|libharfbuzz|libfontconfig|libfreetype|libthai|libdatrie|libfribidi|libpulse|libasound|libjack|libpipewire|libdbus|libsystemd|libudev|libselinux|libmount|libblkid|libz\.|libxml2|libffi|libpcre|libcrypt|libgcc_s|libstdc\+\+|libzstd|liblzma|libbz2|libuuid|libexpat|libsqlite|libcurl|libssl|libcrypto|libnghttp2|libkrb5|libgssapi|libldap|libsasl|libtirpc|libkeyutils|libcom_err|libgcrypt|libgpg-error|libnettle|libhogweed|libidn|libunistring|libiconv|libicu|libgraphite|libgmp|libattr|libacl|librt)'
-
-  queue=("$APPDIR_LIB/libmpv.so.2")
-  cp -L "$MPV_LIB" "$APPDIR_LIB/libmpv.so.2"
-  bundled=0
-  while ((${#queue[@]})); do
-    lib="${queue[0]}"; queue=("${queue[@]:1}")
-    while read -r dep; do
-      [[ -n "$dep" && -e "$dep" ]] || continue
-      base="$(basename "$dep")"
-      [[ "$base" =~ $KEEP_HOST ]] && continue
-      [[ -e "$APPDIR_LIB/$base" ]] && continue
-      cp -L "$dep" "$APPDIR_LIB/$base"
-      bundled=$((bundled + 1))
-      queue+=("$APPDIR_LIB/$base")
-    done < <(ldd "$lib" 2>/dev/null | sed -n 's|.*=> \([^ ]*\) (0x.*|\1|p')
-  done
-  echo "   bundled libmpv + $bundled codec/runtime libraries"
-
-  # Self-check: anything still unresolvable inside the AppDir would break at
-  # exec on the user's machine, so say so here instead.
-  if LD_LIBRARY_PATH="$APPDIR_LIB" ldd "$APPDIR_LIB/libmpv.so.2" 2>/dev/null | grep -q "not found"; then
-    echo "   warning: libmpv still has unresolved dependencies:" >&2
-    LD_LIBRARY_PATH="$APPDIR_LIB" ldd "$APPDIR_LIB/libmpv.so.2" | grep "not found" >&2
-  fi
-else
-  echo "   warning: no system libmpv.so.2 found; the AppImage will need one on the host" >&2
+# Two attempts at bundling it both failed:
+#   1. Copying libmpv.so.2 alone: the copy is linked against the build host's
+#      ffmpeg soname (an Ubuntu runner gives libavcodec.so.60), so on a distro
+#      with a different ffmpeg the loader dies before main() — observed on
+#      Fedora 44 with the CI-built AppImage.
+#   2. Copying libmpv plus its whole dependency closure: it starts, but mpv then
+#      aborts on playback with
+#        m_config_core.c:571: m_config_cache_from_shadow:
+#        Assertion `group_index >= 0' failed
+#      because media_kit ends up with two mpv configurations in one process.
+#
+# The deb and rpm already declare a libmpv dependency and the tar.gz has always
+# relied on the system copy, so the AppImage does the same: the host's libmpv is
+# used and playback matches a normal install. What is checked instead is that we
+# are not shipping one that could shadow the host's.
+if [[ -e "$APPDIR/usr/bin/lib/libmpv.so.2" ]]; then
+  rm -f "$APPDIR/usr/bin/lib/libmpv.so.2"
+fi
+if ! ls "$APPDIR/usr/bin/lib/" 2>/dev/null | grep -q '^libmpv\.so'; then
+  echo "   AppImage ships no libmpv; the host's is used (mpv-libs / libmpv2)"
+fi
+# `ldconfig -p | grep -q` would fail under `set -o pipefail` when grep exits
+# early and ldconfig takes SIGPIPE, which looked like "no libmpv here".
+MPV_PRESENT="$(ldconfig -p | grep -c 'libmpv\.so\.2' || true)"
+if [[ "${MPV_PRESENT:-0}" == "0" ]]; then
+  echo "   warning: this build host has no libmpv.so.2 - the AppImage will need one on the target" >&2
 fi
 cp "$OUT/$NAME.png" "$APPDIR/$NAME.png"
-sed "s|^Exec=.*|Exec=xtream_player|" "$OUT/$NAME.desktop" > "$APPDIR/$NAME.desktop"
+sed -e "s|^Exec=.*|Exec=xtream_player|" \
+    -e "s|^Comment=.*|Comment=IPTV client for Xtream-Codes panels (needs libmpv)|" \
+    "$OUT/$NAME.desktop" > "$APPDIR/$NAME.desktop"
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
