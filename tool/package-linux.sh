@@ -149,10 +149,42 @@ APPDIR="$ROOT/build/appimage/AppDir"
 rm -rf "$APPDIR"
 install -d "$APPDIR/usr/bin"
 cp -r "$BUNDLE/." "$APPDIR/usr/bin/"
-# bundle libmpv so the AppImage does not depend on the host providing it
+# Bundle libmpv *and the codec stack it is linked against*.
+#
+# Shipping libmpv alone is worse than not shipping it: the copy on the build host
+# is linked against that host's ffmpeg soname (an Ubuntu runner gives
+# libavcodec.so.60), so on a distro with a different ffmpeg the loader fails
+# before main() and the whole AppImage is dead. Bundle the transitive closure,
+# but keep graphics/audio/GTK/desktop libs from the host - those must match the
+# running session.
 MPV_LIB="$(ldconfig -p | sed -n 's|.*=> \(.*/libmpv\.so\.2\)$|\1|p' | head -n 1)"
 if [[ -n "$MPV_LIB" && -e "$MPV_LIB" ]]; then
-  cp -L "$MPV_LIB" "$APPDIR/usr/bin/lib/libmpv.so.2"
+  APPDIR_LIB="$APPDIR/usr/bin/lib"
+  KEEP_HOST='^(libc|libm|libdl|libpthread|librt|libresolv|libutil|libnsl|ld-linux|libX|libxcb|libxkbcommon|libGL|libEGL|libGLX|libOpenGL|libgbm|libdrm|libwayland|libgtk|libgdk|libglib|libgio|libgobject|libpango|libcairo|libharfbuzz|libfontconfig|libfreetype|libthai|libdatrie|libfribidi|libpulse|libasound|libjack|libpipewire|libdbus|libsystemd|libudev|libselinux|libmount|libblkid|libz\.|libxml2|libffi|libpcre|libcrypt|libgcc_s|libstdc\+\+|libzstd|liblzma|libbz2|libuuid|libexpat|libsqlite|libcurl|libssl|libcrypto|libnghttp2|libkrb5|libgssapi|libldap|libsasl|libtirpc|libkeyutils|libcom_err|libgcrypt|libgpg-error|libnettle|libhogweed|libidn|libunistring|libiconv|libicu|libgraphite|libgmp|libattr|libacl|librt)'
+
+  queue=("$APPDIR_LIB/libmpv.so.2")
+  cp -L "$MPV_LIB" "$APPDIR_LIB/libmpv.so.2"
+  bundled=0
+  while ((${#queue[@]})); do
+    lib="${queue[0]}"; queue=("${queue[@]:1}")
+    while read -r dep; do
+      [[ -n "$dep" && -e "$dep" ]] || continue
+      base="$(basename "$dep")"
+      [[ "$base" =~ $KEEP_HOST ]] && continue
+      [[ -e "$APPDIR_LIB/$base" ]] && continue
+      cp -L "$dep" "$APPDIR_LIB/$base"
+      bundled=$((bundled + 1))
+      queue+=("$APPDIR_LIB/$base")
+    done < <(ldd "$lib" 2>/dev/null | sed -n 's|.*=> \([^ ]*\) (0x.*|\1|p')
+  done
+  echo "   bundled libmpv + $bundled codec/runtime libraries"
+
+  # Self-check: anything still unresolvable inside the AppDir would break at
+  # exec on the user's machine, so say so here instead.
+  if LD_LIBRARY_PATH="$APPDIR_LIB" ldd "$APPDIR_LIB/libmpv.so.2" 2>/dev/null | grep -q "not found"; then
+    echo "   warning: libmpv still has unresolved dependencies:" >&2
+    LD_LIBRARY_PATH="$APPDIR_LIB" ldd "$APPDIR_LIB/libmpv.so.2" | grep "not found" >&2
+  fi
 else
   echo "   warning: no system libmpv.so.2 found; the AppImage will need one on the host" >&2
 fi
@@ -161,6 +193,9 @@ sed "s|^Exec=.*|Exec=xtream_player|" "$OUT/$NAME.desktop" > "$APPDIR/$NAME.deskt
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
+# The bundle already finds its own lib/ through RPATH; this covers anything that
+# dlopen()s by soname at runtime.
+export LD_LIBRARY_PATH="$HERE/usr/bin/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$HERE/usr/bin/xtream_player" "$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
