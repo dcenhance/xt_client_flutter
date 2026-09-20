@@ -34,8 +34,23 @@ class XtreamPlayerApp extends StatelessWidget {
           child: ListenableBuilder(
             listenable: appState,
             builder: (context, _) {
-              if (appState.loggedIn) return const HomeScreen();
-              return const LoginScreen();
+              // Signing in swaps the whole screen: the login card fades and
+              // lifts away while the app fades in under it.
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.97, end: 1).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: appState.loggedIn
+                    ? const HomeScreen(key: ValueKey('home'))
+                    : const LoginScreen(key: ValueKey('login')),
+              );
             },
           ),
         ),

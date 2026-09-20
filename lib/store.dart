@@ -76,7 +76,6 @@ class AppState extends ChangeNotifier {
   static const _kLogins = 'logins';
   static const _kWorking = 'working_servers';
   static const _kLayout = 'layout';
-  static const _kMark = 'mark_variant';
 
   SharedPreferences? _prefs;
 
@@ -87,7 +86,6 @@ class AppState extends ChangeNotifier {
   ViewMode viewMode = ViewMode.grid;
   Density density = Density.comfortable;
   String themeId = kGoldenOled.id;
-  String markVariant = 'orbit';
   LayoutStyle layout = LayoutStyle.classic;
 
   /// True when browsing a panel that answers without credentials.
@@ -208,7 +206,6 @@ class AppState extends ChangeNotifier {
         ? Density.compact
         : Density.comfortable;
     themeId = _prefs!.getString(_kTheme) ?? kGoldenOled.id;
-    markVariant = _prefs!.getString(_kMark) ?? 'orbit';
     layout = LayoutStyle.values.firstWhere(
       (l) => l.name == (_prefs!.getString(_kLayout) ?? 'classic'),
       orElse: () => LayoutStyle.classic,
@@ -275,11 +272,6 @@ class AppState extends ChangeNotifier {
   }
 
   /// Pick which app mark to show, in-app and (on Android) as the launcher icon.
-  Future<void> setMarkVariant(String id) async {
-    markVariant = id;
-    await _prefs?.setString(_kMark, id);
-    notifyListeners();
-  }
 
   /// Switch the whole app to another shell layout and remember it.
   Future<void> setLayout(LayoutStyle value) async {

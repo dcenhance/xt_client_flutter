@@ -322,3 +322,266 @@ class _PressableScaleState extends State<PressableScale> {
     );
   }
 }
+
+
+/// Scales and fades its child in once, with a spring that overshoots slightly —
+/// the entrance for the brand mark, so the screen does not simply appear.
+class EntrancePop extends StatefulWidget {
+  const EntrancePop({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.duration = const Duration(milliseconds: 720),
+  });
+
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+
+  @override
+  State<EntrancePop> createState() => _EntrancePopState();
+}
+
+class _EntrancePopState extends State<EntrancePop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: widget.duration);
+  late final Animation<double> _t =
+      CurvedAnimation(parent: _c, curve: Curves.easeOutBack);
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _c, curve: const Interval(0, 0.55, curve: Curves.easeOut));
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  Future<void> _start() async {
+    if (widget.delay > Duration.zero) {
+      await Future<void>.delayed(widget.delay);
+    }
+    if (mounted) _c.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_reduced(context) && !_c.isCompleted) _c.value = 1;
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) => Opacity(
+        opacity: _fade.value.clamp(0, 1),
+        child: Transform.scale(scale: 0.82 + 0.18 * _t.value, child: child),
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+/// A halo that turns slowly behind the brand mark: a conic rim of light that
+/// rotates, breathes and never repeats its exact frame. Steady idle motion.
+class RotatingHalo extends StatefulWidget {
+  const RotatingHalo({
+    super.key,
+    required this.child,
+    required this.size,
+    this.turns = const Duration(seconds: 14),
+  });
+
+  final Widget child;
+  final double size;
+  final Duration turns;
+
+  @override
+  State<RotatingHalo> createState() => _RotatingHaloState();
+}
+
+class _RotatingHaloState extends State<RotatingHalo>
+    with TickerProviderStateMixin {
+  late final AnimationController _spin =
+      AnimationController(vsync: this, duration: widget.turns);
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3600),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_reduced(context)) {
+      _spin.stop();
+      _breath.stop();
+      _breath.value = 0.4;
+    } else {
+      if (!_spin.isAnimating) _spin.repeat();
+      if (!_breath.isAnimating) _breath.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    _breath.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The rim lives clearly outside the mark: a halo, not a border on it.
+    final rim = widget.size;
+    return SizedBox(
+      width: widget.size * 2.08,
+      height: widget.size * 2.08,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_spin, _breath]),
+        builder: (context, child) {
+          final b = _breath.value;
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // Soft radial glow, swelling and settling.
+              Container(
+                width: rim * (1.9 + 0.10 * b),
+                height: rim * (1.9 + 0.10 * b),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    AppTheme.accent.withValues(alpha: 0.20 + 0.10 * b),
+                    AppTheme.accent.withValues(alpha: 0),
+                  ]),
+                ),
+              ),
+              // Turning rim: a conic sweep masked to a ring.
+              Transform.rotate(
+                angle: _spin.value * 2 * math.pi,
+                child: Container(
+                  width: rim * 1.46,
+                  height: rim * 1.46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: SweepGradient(
+                      colors: [
+                        AppTheme.accent.withValues(alpha: 0),
+                        AppTheme.accent.withValues(alpha: 0.55),
+                        AppTheme.accent2.withValues(alpha: 0.45),
+                        AppTheme.accent.withValues(alpha: 0),
+                      ],
+                      stops: const [0, 0.28, 0.5, 0.78],
+                    ),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: rim * 1.34,
+                      height: rim * 1.34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppTheme.background,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              child!,
+            ],
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// A light band that sweeps across its child now and then — the "spectre"
+/// streak. Clipped to the child's bounds, so it reads as a reflection.
+class SpectralSweep extends StatefulWidget {
+  const SpectralSweep({
+    super.key,
+    required this.child,
+    this.period = const Duration(milliseconds: 4200),
+    this.band = 0.45,
+  });
+
+  final Widget child;
+  final Duration period;
+
+  /// Band width as a fraction of the child width.
+  final double band;
+
+  @override
+  State<SpectralSweep> createState() => _SpectralSweepState();
+}
+
+class _SpectralSweepState extends State<SpectralSweep>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: widget.period);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_reduced(context)) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) {
+          // Idle pause, then a quick sweep: hold, cross, hold.
+          final raw = _c.value;
+          final t = raw < 0.55 ? null : Curves.easeInOut.transform((raw - 0.55) / 0.45);
+          return Stack(
+            children: [
+              child!,
+              if (t != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: FractionallySizedBox(
+                      widthFactor: widget.band,
+                      alignment: Alignment(-1.6 + 3.2 * t, 0),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withValues(alpha: 0),
+                              Colors.white.withValues(alpha: 0.14),
+                              Colors.white.withValues(alpha: 0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}

@@ -6,7 +6,6 @@ import '../panels.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../widgets/focus_ring.dart';
-import '../widgets/app_mark.dart';
 import '../widgets/layout_picker.dart';
 import '../widgets/server_tools.dart';
 import '../widgets/theme_picker.dart';
@@ -83,18 +82,6 @@ class SettingsContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const LayoutPicker(),
-
-                  // ---- app mark ----------------------------------------------
-                  const SizedBox(height: 22),
-                  const Text('App icon',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Pick the mark you like — it shows in the app everywhere.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
-                  ),
-                  const SizedBox(height: 8),
-                  const MarkPicker(),
 
                   // ---- theme -------------------------------------------------
                   const SizedBox(height: 22),

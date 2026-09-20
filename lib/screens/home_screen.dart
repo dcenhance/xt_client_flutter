@@ -90,25 +90,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final onContent = _mobileIndex < _mobileTabsToContent.length;
     return Scaffold(
       appBar: AppBar(
-        title: onContent
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_mobileTabs[_mobileIndex].$1),
-                  if (a != null)
-                    Text(
-                      a.expired
-                          ? 'EXPIRED ${a.expiryLabel}'
-                          : 'expires ${a.expiryLabel} · ${a.activeConnections}/${a.maxConnections} conn',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: a.expired ? AppTheme.danger : AppTheme.muted,
-                      ),
-                    ),
-                ],
-              )
-            : const Text('Account'),
+        // One clean line: the mark and what this tab holds. The subscription
+        // details live in Account, not squeezed into the title bar.
+        titleSpacing: 14,
+        title: Row(
+          children: [
+            AppMark(size: 22),
+            const SizedBox(width: 10),
+            Text(onContent ? _mobileTabs[_mobileIndex].$1 : 'Account'),
+          ],
+        ),
         actions: [
           if (appState.guest)
             Center(
@@ -126,28 +117,43 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_searchOpen) _searchFocus.requestFocus();
               },
             ),
-            IconButton(
-              tooltip: appState.viewMode == ViewMode.grid ? 'List view' : 'Grid view',
-              icon: Icon(appState.viewMode == ViewMode.grid
-                  ? Icons.view_list_outlined
-                  : Icons.grid_view_outlined),
-              onPressed: () => appState.setViewMode(
-                  appState.viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid),
+            PopupMenuButton<String>(
+              tooltip: 'View & refresh',
+              icon: const Icon(Icons.tune),
+              onSelected: (choice) {
+                switch (choice) {
+                  case 'view':
+                    appState.setViewMode(appState.viewMode == ViewMode.grid
+                        ? ViewMode.list
+                        : ViewMode.grid);
+                    break;
+                  case 'density':
+                    appState.setDensity(appState.density == Density.compact
+                        ? Density.comfortable
+                        : Density.compact);
+                    break;
+                  case 'reload':
+                    appState.loadContent(appState.tab, refresh: true);
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'view',
+                  child: Text(appState.viewMode == ViewMode.grid
+                      ? 'List view'
+                      : 'Grid view'),
+                ),
+                PopupMenuItem(
+                  value: 'density',
+                  child: Text(appState.density == Density.compact
+                      ? 'Comfortable spacing'
+                      : 'Compact spacing'),
+                ),
+                const PopupMenuItem(value: 'reload', child: Text('Reload')),
+              ],
             ),
-            IconButton(
-              tooltip: appState.density == Density.compact ? 'Comfortable' : 'Compact',
-              icon: Icon(appState.density == Density.compact
-                  ? Icons.density_medium
-                  : Icons.density_small),
-              onPressed: () => appState.setDensity(appState.density == Density.compact
-                  ? Density.comfortable
-                  : Density.compact),
-            ),
-            IconButton(
-              tooltip: 'Reload',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => appState.loadContent(appState.tab, refresh: true),
-            ),
+            const SizedBox(width: 4),
           ],
         ],
       ),
