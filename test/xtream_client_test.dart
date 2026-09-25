@@ -22,7 +22,10 @@ void main() {
   group('XtreamClient.normaliseServer', () {
     test('adds scheme and strips trailing slash', () {
       expect(XtreamClient.normaliseServer('host:8080'), 'http://host:8080');
-      expect(XtreamClient.normaliseServer('http://host:8080/'), 'http://host:8080');
+      expect(
+        XtreamClient.normaliseServer('http://host:8080/'),
+        'http://host:8080',
+      );
       expect(XtreamClient.normaliseServer(' https://host '), 'https://host');
     });
   });
@@ -33,13 +36,18 @@ void main() {
         'username': 'someone',
         'auth': 1,
         'status': 'Active',
-        'exp_date': '1790000000',
+        'exp_date':
+            '${DateTime.now().add(const Duration(days: 365)).millisecondsSinceEpoch ~/ 1000}',
         'max_connections': '2',
         'active_cons': '1',
         'is_trial': '0',
         'allowed_output_formats': ['m3u8', 'ts'],
       },
-      'server_info': {'url': 'panel.example', 'port': '8080', 'server_protocol': 'http'},
+      'server_info': {
+        'url': 'panel.example',
+        'port': '8080',
+        'server_protocol': 'http',
+      },
     });
     final server = await startPanel(body: body);
     final client = XtreamClient(
@@ -57,7 +65,9 @@ void main() {
 
   test('auth:0 is reported as rejected credentials', () async {
     final server = await startPanel(
-      body: jsonEncode({'user_info': {'auth': 0, 'status': 'Disabled'}}),
+      body: jsonEncode({
+        'user_info': {'auth': 0, 'status': 'Disabled'},
+      }),
     );
     final client = XtreamClient(
       server: 'http://127.0.0.1:${server.port}',
@@ -66,8 +76,13 @@ void main() {
     );
     await expectLater(
       client.login(),
-      throwsA(isA<XtreamException>()
-          .having((e) => e.kind, 'kind', XtreamErrorKind.rejected)),
+      throwsA(
+        isA<XtreamException>().having(
+          (e) => e.kind,
+          'kind',
+          XtreamErrorKind.rejected,
+        ),
+      ),
     );
     await server.close(force: true);
   });
@@ -85,8 +100,13 @@ void main() {
     );
     await expectLater(
       client.login(),
-      throwsA(isA<XtreamException>()
-          .having((e) => e.kind, 'kind', XtreamErrorKind.expired)),
+      throwsA(
+        isA<XtreamException>().having(
+          (e) => e.kind,
+          'kind',
+          XtreamErrorKind.expired,
+        ),
+      ),
     );
     await server.close(force: true);
   });
@@ -100,9 +120,11 @@ void main() {
     );
     await expectLater(
       client.login(),
-      throwsA(isA<XtreamException>()
-          .having((e) => e.kind, 'kind', XtreamErrorKind.http)
-          .having((e) => e.statusCode, 'status', 403)),
+      throwsA(
+        isA<XtreamException>()
+            .having((e) => e.kind, 'kind', XtreamErrorKind.http)
+            .having((e) => e.statusCode, 'status', 403),
+      ),
     );
     await server.close(force: true);
   });
@@ -118,8 +140,13 @@ void main() {
     );
     await expectLater(
       client.login(),
-      throwsA(isA<XtreamException>()
-          .having((e) => e.kind, 'kind', XtreamErrorKind.unreachable)),
+      throwsA(
+        isA<XtreamException>().having(
+          (e) => e.kind,
+          'kind',
+          XtreamErrorKind.unreachable,
+        ),
+      ),
     );
   });
 
@@ -132,29 +159,34 @@ void main() {
     );
     await expectLater(
       client.login(),
-      throwsA(isA<XtreamException>()
-          .having((e) => e.kind, 'kind', XtreamErrorKind.wrongServer)
-          .having((e) => e.message, 'message', contains('not a valid URL'))),
+      throwsA(
+        isA<XtreamException>()
+            .having((e) => e.kind, 'kind', XtreamErrorKind.wrongServer)
+            .having((e) => e.message, 'message', contains('not a valid URL')),
+      ),
     );
   });
 
-  test('Cloudflare 1034 is called out as dead DNS, not bad credentials', () async {
-    final server = await startPanel(body: 'error code: 1034', status: 403);
-    final client = XtreamClient(
-      server: 'http://127.0.0.1:${server.port}',
-      username: 'x',
-      password: 'y',
-    );
-    try {
-      await client.login();
-      fail('expected XtreamException');
-    } on XtreamException catch (e) {
-      expect(e.kind, XtreamErrorKind.http);
-      expect(e.message, contains('1034'));
-      expect(e.hint, contains('DNS record points at a placeholder'));
-    }
-    await server.close(force: true);
-  });
+  test(
+    'Cloudflare 1034 is called out as dead DNS, not bad credentials',
+    () async {
+      final server = await startPanel(body: 'error code: 1034', status: 403);
+      final client = XtreamClient(
+        server: 'http://127.0.0.1:${server.port}',
+        username: 'x',
+        password: 'y',
+      );
+      try {
+        await client.login();
+        fail('expected XtreamException');
+      } on XtreamException catch (e) {
+        expect(e.kind, XtreamErrorKind.http);
+        expect(e.message, contains('1034'));
+        expect(e.hint, contains('DNS record points at a placeholder'));
+      }
+      await server.close(force: true);
+    },
+  );
 
   test('https to a plain-HTTP panel falls back to http automatically', () async {
     // The panel below speaks plain HTTP on this port; asking for https:// first
@@ -174,8 +206,10 @@ void main() {
     final info = await client.login();
     expect(info.authenticated, isTrue);
     expect(client.effectiveServer, 'http://127.0.0.1:${server.port}');
-    expect(client.liveUrl(StreamItem(id: '5', name: 'c', kind: 'live')),
-        'http://127.0.0.1:${server.port}/live/u/p/5.ts');
+    expect(
+      client.liveUrl(StreamItem(id: '5', name: 'c', kind: 'live')),
+      'http://127.0.0.1:${server.port}/live/u/p/5.ts',
+    );
     await server.close(force: true);
   }, timeout: const Timeout(Duration(seconds: 60)));
 
@@ -194,10 +228,16 @@ void main() {
     );
     await expectLater(
       client.login(),
-      throwsA(isA<XtreamException>()
-          .having((e) => e.kind, 'kind', XtreamErrorKind.deadDns)
-          .having((e) => e.message, 'message', contains('placeholder address'))
-          .having((e) => e.body, 'body', '1.1.1.1')),
+      throwsA(
+        isA<XtreamException>()
+            .having((e) => e.kind, 'kind', XtreamErrorKind.deadDns)
+            .having(
+              (e) => e.message,
+              'message',
+              contains('placeholder address'),
+            )
+            .having((e) => e.body, 'body', '1.1.1.1'),
+      ),
     );
   }, timeout: const Timeout(Duration(seconds: 60)));
 
@@ -208,11 +248,22 @@ void main() {
       password: 'pass',
     );
     final live = StreamItem(id: '12', name: 'Channel', kind: 'live');
-    final vod = StreamItem(id: '99', name: 'Movie', kind: 'movie', containerExtension: 'mkv');
+    final vod = StreamItem(
+      id: '99',
+      name: 'Movie',
+      kind: 'movie',
+      containerExtension: 'mkv',
+    );
     expect(client.liveUrl(live), 'http://panel:8080/live/user/pass/12.ts');
-    expect(client.liveUrl(live, extension: 'm3u8'), 'http://panel:8080/live/user/pass/12.m3u8');
+    expect(
+      client.liveUrl(live, extension: 'm3u8'),
+      'http://panel:8080/live/user/pass/12.m3u8',
+    );
     expect(client.vodUrl(vod), 'http://panel:8080/movie/user/pass/99.mkv');
-    expect(client.seriesEpisodeUrl('7', 'mp4'), 'http://panel:8080/series/user/pass/7.mp4');
+    expect(
+      client.seriesEpisodeUrl('7', 'mp4'),
+      'http://panel:8080/series/user/pass/7.mp4',
+    );
     expect(
       client.playlistUrl(hls: true),
       'http://panel:8080/get.php?username=user&password=pass&type=m3u_plus&output=m3u8',

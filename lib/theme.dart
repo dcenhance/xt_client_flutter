@@ -161,7 +161,6 @@ const kPalettes = <AppPalette>[
   kGoldenOled,
   kAmberNoir,
   kMidnight,
-  kGoldenOled,
   kForest,
   kViolet,
   kDaylight,
@@ -175,7 +174,10 @@ class AppTheme {
   static AppPalette get palette => _active;
 
   static void use(String id) {
-    _active = kPalettes.firstWhere((p) => p.id == id, orElse: () => kGoldenOled);
+    _active = kPalettes.firstWhere(
+      (p) => p.id == id,
+      orElse: () => kGoldenOled,
+    );
   }
 
   static Color get accent => _active.accent;
@@ -199,19 +201,19 @@ class AppTheme {
   /// Subtle vertical gradient used for headers, empty states and the featured
   /// strip so surfaces are not flat single colours.
   static LinearGradient headerGradient() => LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: hero,
-      );
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: hero,
+  );
 
   static LinearGradient scrim() => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          _active.background.withValues(alpha: 0.0),
-          _active.background.withValues(alpha: 0.75),
-        ],
-      );
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      _active.background.withValues(alpha: 0.0),
+      _active.background.withValues(alpha: 0.75),
+    ],
+  );
 
   static ThemeData data() {
     final p = _active;
@@ -256,7 +258,10 @@ class AppTheme {
         isDense: true,
         hintStyle: TextStyle(color: p.muted, fontSize: 13.5),
         labelStyle: TextStyle(color: p.muted, fontSize: 13),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: p.border),
@@ -275,9 +280,14 @@ class AppTheme {
           backgroundColor: p.accent,
           foregroundColor: p.onAccent,
           minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5,
-              letterSpacing: 0.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14.5,
+            letterSpacing: 0.2,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -285,8 +295,13 @@ class AppTheme {
           foregroundColor: p.text,
           side: BorderSide(color: p.border),
           minimumSize: const Size(0, 42),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 13.5,
+          ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(

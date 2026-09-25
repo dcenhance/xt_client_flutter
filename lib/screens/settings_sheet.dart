@@ -16,6 +16,7 @@ Future<void> showSettingsSheet(BuildContext context) {
     context: context,
     backgroundColor: AppTheme.surface,
     isScrollControlled: true,
+    useSafeArea: true,
     builder: (context) => const SettingsContent(),
   );
 }
@@ -44,8 +45,13 @@ class SettingsContent extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Text('Account & settings',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      const Text(
+                        'Account & settings',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const Spacer(),
                       if (showClose)
                         IconButton(
@@ -58,48 +64,81 @@ class SettingsContent extends StatelessWidget {
                   _row('Server', appState.server),
                   _row('Username', a?.username ?? appState.username),
                   if (a != null) ...[
-                    _row('Status', a.expired ? 'EXPIRED' : (a.status ?? 'active'),
-                        valueColor: a.expired ? AppTheme.danger : AppTheme.ok),
+                    _row(
+                      'Status',
+                      a.expired ? 'EXPIRED' : (a.status ?? 'active'),
+                      valueColor: a.expired ? AppTheme.danger : AppTheme.ok,
+                    ),
                     _row('Expires', a.expiryLabel),
-                    _row('Connections', '${a.activeConnections} active / ${a.maxConnections} max'),
+                    _row(
+                      'Connections',
+                      '${a.activeConnections} active / ${a.maxConnections} max',
+                    ),
                     _row('Output formats', a.allowedOutputFormats.join(', ')),
                     if (a.serverProtocol != null)
-                      _row('Panel', [
-                        a.serverProtocol,
-                        'port ${a.serverPort ?? '?'}',
-                        if ((a.httpsPort ?? '').isNotEmpty) 'https ${a.httpsPort}',
-                      ].join(' · ')),
+                      _row(
+                        'Panel',
+                        [
+                          a.serverProtocol,
+                          'port ${a.serverPort ?? '?'}',
+                          if ((a.httpsPort ?? '').isNotEmpty)
+                            'https ${a.httpsPort}',
+                        ].join(' · '),
+                      ),
                   ],
 
                   // ---- layout ------------------------------------------------
                   const SizedBox(height: 22),
-                  const Text('Layout',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Layout',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'Pick any shell on any platform — it changes the whole navigation.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.muted,
+                      height: 1.45,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const LayoutPicker(),
 
                   // ---- theme -------------------------------------------------
                   const SizedBox(height: 22),
-                  const Text('Theme',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Theme',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   const ThemePicker(wrap: true),
 
                   // ---- panel (only meaningful after a login) ------------------
                   if (appState.account != null) ...[
                     const SizedBox(height: 22),
-                    const Text('Panel',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                    const Text(
+                      'Panel',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       'You are on ${AppState.panelLabel(appState.server)}. '
                       'Switching keeps the same account — nothing to retype.',
-                      style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.muted,
+                        height: 1.45,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -109,7 +148,8 @@ class SettingsContent extends StatelessWidget {
                         for (final p in kPanelPresets)
                           _PanelChip(
                             panel: p,
-                            active: XtreamClient.normaliseServer(p.url) ==
+                            active:
+                                XtreamClient.normaliseServer(p.url) ==
                                 XtreamClient.normaliseServer(appState.server),
                             onTap: () => appState.switchPanel(p.url),
                           ),
@@ -120,78 +160,120 @@ class SettingsContent extends StatelessWidget {
                   // ---- remembered logins --------------------------------------
                   if (appState.logins.isNotEmpty) ...[
                     const SizedBox(height: 22),
-                    const Text('Saved logins',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                    const Text(
+                      'Saved logins',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       'Kept on this device and used to sign back in automatically. '
                       'Forget removes one for good.',
-                      style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.muted,
+                        height: 1.45,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     for (final l in appState.recentLogins)
                       _LoginRow(
                         login: l,
-                        active: l.server == appState.server &&
+                        active:
+                            l.server == appState.server &&
                             l.username == appState.username,
                         onUse: () => appState.resumeLogin(l),
                         onForget: () => appState.forget(l),
                       ),
                   ],
                   const SizedBox(height: 18),
-                  const Text('Use the same subscription in another app',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Use the same subscription in another app',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'Any client that speaks Xtream Codes can use these. They embed your '
                     'username and password, so treat them like a secret and do not paste them '
                     'into chats or public sites.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.5),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.muted,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   if (appState.client != null) ...[
-                    _urlTile(context, 'M3U playlist (ts)', appState.client!.playlistUrl()),
-                    _urlTile(context, 'M3U playlist (hls)', appState.client!.playlistUrl(hls: true)),
+                    _urlTile(
+                      context,
+                      'M3U playlist (ts)',
+                      appState.client!.playlistUrl(),
+                    ),
+                    _urlTile(
+                      context,
+                      'M3U playlist (hls)',
+                      appState.client!.playlistUrl(hls: true),
+                    ),
                     _urlTile(context, 'EPG (XMLTV)', appState.client!.epgUrl()),
                   ],
                   const SizedBox(height: 22),
-                  const Text('Server tools',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Server tools',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'Only needed when a login fails and the address itself is in doubt. '
                     'Nothing here is sent anywhere except the servers you name.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.45),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.muted,
+                      height: 1.45,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   const ServerToolsSection(),
 
                   const SizedBox(height: 22),
-                  const Text('Keyboard / remote',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Keyboard / remote',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'Arrows move the focus, Enter (or the remote’s OK) activates, Esc/Back goes '
-                    'back. In the player: ↑↓ switch channel, ←→ seek, Enter/Space pause, M mute, '
-                    'C cinema mode. Works with Fire TV / Android TV remotes, HID remotes and '
-                    'keyboard-style controllers. Raw gamepads that expose no keyboard events '
-                    'are not mapped yet.',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted, height: 1.5),
+                    'back. In the player, press OK to reveal the controls, then use arrows '
+                    'to choose a button and OK to activate it. With the video focused, '
+                    '↑↓ switch channel, ←→ seek or change live volume; Enter/Space pauses, '
+                    'M mutes and C toggles cinema. Fire TV / Android TV remotes and '
+                    'keyboard-style controllers work; raw gamepads with no keyboard '
+                    'events are not mapped yet.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.muted,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 18),
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
                     children: [
                       OutlinedButton(
                         onPressed: () async {
-                          Navigator.pop(context);
+                          if (showClose) Navigator.pop(context);
                           await appState.logout();
                         },
                         child: const Text('Log out'),
                       ),
-                      const SizedBox(width: 10),
                       OutlinedButton(
                         onPressed: () {
-                          Navigator.pop(context);
+                          if (showClose) Navigator.pop(context);
                           appState.loadContent(appState.tab, refresh: true);
                         },
                         child: const Text('Reload content'),
@@ -215,12 +297,18 @@ class SettingsContent extends StatelessWidget {
         children: [
           SizedBox(
             width: 140,
-            child: Text(label, style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 12, color: AppTheme.muted),
+            ),
           ),
           Expanded(
             child: SelectableText(
               value,
-              style: TextStyle(fontSize: 12.5, color: valueColor ?? AppTheme.text),
+              style: TextStyle(
+                fontSize: 12.5,
+                color: valueColor ?? AppTheme.text,
+              ),
             ),
           ),
         ],
@@ -235,9 +323,9 @@ class SettingsContent extends StatelessWidget {
       onSelect: () async {
         await Clipboard.setData(ClipboardData(text: url));
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$label copied to clipboard')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('$label copied to clipboard')));
         }
       },
       child: Padding(
@@ -255,14 +343,21 @@ class SettingsContent extends StatelessWidget {
             maxLines: constraints.maxWidth < 480 ? 3 : 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-                fontSize: 12, color: AppTheme.text, fontFamily: 'monospace', height: 1.4),
+              fontSize: 12,
+              color: AppTheme.text,
+              fontFamily: 'monospace',
+              height: 1.4,
+            ),
           );
           // Narrow (phone) layout: label above, URL below, copy button beside.
           if (constraints.maxWidth < 480) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                ),
                 const SizedBox(height: 4),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +373,10 @@ class SettingsContent extends StatelessWidget {
             children: [
               SizedBox(
                 width: 140,
-                child: Text(label, style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                ),
               ),
               Expanded(child: urlText),
               copyButton,
@@ -296,14 +394,17 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const SafeArea(
-        child: SettingsContent(showClose: false),
-      );
+  Widget build(BuildContext context) =>
+      const SafeArea(child: SettingsContent(showClose: false));
 }
 
 /// Panel chip in the Account page: tap to move this account to another panel.
 class _PanelChip extends StatelessWidget {
-  const _PanelChip({required this.panel, required this.active, required this.onTap});
+  const _PanelChip({
+    required this.panel,
+    required this.active,
+    required this.onTap,
+  });
 
   final PanelPreset panel;
   final bool active;
@@ -320,9 +421,13 @@ class _PanelChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           decoration: BoxDecoration(
-            color: active ? AppTheme.accent.withValues(alpha: 0.18) : AppTheme.card,
+            color: active
+                ? AppTheme.accent.withValues(alpha: 0.18)
+                : AppTheme.card,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: active ? AppTheme.accent : AppTheme.border),
+            border: Border.all(
+              color: active ? AppTheme.accent : AppTheme.border,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -331,11 +436,14 @@ class _PanelChip extends StatelessWidget {
                 Icon(Icons.check, size: 13, color: AppTheme.accent),
                 const SizedBox(width: 6),
               ],
-              Text(panel.name,
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      color: active ? AppTheme.accent : AppTheme.text,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
+              Text(
+                panel.name,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: active ? AppTheme.accent : AppTheme.text,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
             ],
           ),
         ),
@@ -370,38 +478,55 @@ class _LoginRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppTheme.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: active ? AppTheme.accent : AppTheme.border),
+            border: Border.all(
+              color: active ? AppTheme.accent : AppTheme.border,
+            ),
           ),
           child: Row(
             children: [
-              Icon(active ? Icons.person : Icons.person_outline,
-                  size: 18, color: active ? AppTheme.accent : AppTheme.muted),
+              Icon(
+                active ? Icons.person : Icons.person_outline,
+                size: 18,
+                color: active ? AppTheme.accent : AppTheme.muted,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(login.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.text,
-                            fontWeight: FontWeight.w600)),
+                    Text(
+                      login.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text('${login.server}  ·  last used ${_ago(login.lastUsed)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+                    Text(
+                      '${login.server}  ·  last used ${_ago(login.lastUsed)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                    ),
                   ],
                 ),
               ),
               if (!active)
-                TextButton(onPressed: onUse, child: const Text('Use', style: TextStyle(fontSize: 12))),
+                TextButton(
+                  onPressed: onUse,
+                  child: const Text('Use', style: TextStyle(fontSize: 12)),
+                ),
               IconButton(
                 tooltip: 'Forget',
                 onPressed: onForget,
-                icon: Icon(Icons.delete_outline, size: 16, color: AppTheme.muted),
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 16,
+                  color: AppTheme.muted,
+                ),
               ),
             ],
           ),

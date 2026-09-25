@@ -19,9 +19,48 @@ void _openItem(BuildContext context, StreamItem item) {
     showSeriesSheet(context, item);
     return;
   }
-  Navigator.of(context).push(MaterialPageRoute(
-    builder: (_) => PlayerScreen(item: item),
-  ));
+  Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => PlayerScreen(item: item)));
+}
+
+/// Compact layouts have no persistent search field. Open a real input rather
+/// than focusing a node that is not mounted in the tree.
+Future<void> _showContentSearch(
+  BuildContext context,
+  TextEditingController controller,
+) {
+  final focus = dpadTextFocusNode(controller: controller);
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Search'),
+      content: TextField(
+        controller: controller,
+        focusNode: focus,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: 'Channels, movies, series',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: IconButton(
+            tooltip: 'Clear search',
+            icon: const Icon(Icons.clear),
+            onPressed: () {
+              controller.clear();
+              appState.setSearch('');
+            },
+          ),
+        ),
+        onChanged: appState.setSearch,
+        onSubmitted: (_) => Navigator.of(dialogContext).pop(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Done'),
+        ),
+      ],
+    ),
+  ).whenComplete(focus.dispose);
 }
 
 class HomeScreen extends StatefulWidget {
@@ -56,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _searchController.text = appState.search;
+    appState.addListener(_syncSearch);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (appState.items.isEmpty && appState.client != null) {
         appState.loadContent(appState.tab);
@@ -65,10 +105,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    appState.removeListener(_syncSearch);
     _searchController.dispose();
     _searchFocus.dispose();
     _gridFocus.dispose();
     super.dispose();
+  }
+
+  void _syncSearch() {
+    if (_searchController.text != appState.search) {
+      _searchController.value = TextEditingValue(
+        text: appState.search,
+        selection: TextSelection.collapsed(offset: appState.search.length),
+      );
+    }
   }
 
   /// Bottom-navigation shell used on Android and iOS.
@@ -76,10 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Every shell gets the same traversal policy, so arrows and TAB walk out of
   /// the toolbar and into the content on a remote or keyboard.
-  Widget _shell(Widget child) => FocusTraversalGroup(
-        policy: ReadingOrderTraversalPolicy(),
-        child: child,
-      );
+  Widget _shell(Widget child) =>
+      FocusTraversalGroup(policy: ReadingOrderTraversalPolicy(), child: child);
 
   void _selectMobileTab(int index) {
     setState(() => _mobileIndex = index);
@@ -113,7 +161,9 @@ class _HomeScreenState extends State<HomeScreen> {
           if (onContent) ...[
             IconButton(
               tooltip: 'Search',
-              icon: Icon(appState.search.isEmpty ? Icons.search : Icons.search_off),
+              icon: Icon(
+                appState.search.isEmpty ? Icons.search : Icons.search_off,
+              ),
               onPressed: () {
                 setState(() => _searchOpen = !_searchOpen);
                 if (_searchOpen) _searchFocus.requestFocus();
@@ -125,14 +175,18 @@ class _HomeScreenState extends State<HomeScreen> {
               onSelected: (choice) {
                 switch (choice) {
                   case 'view':
-                    appState.setViewMode(appState.viewMode == ViewMode.grid
-                        ? ViewMode.list
-                        : ViewMode.grid);
+                    appState.setViewMode(
+                      appState.viewMode == ViewMode.grid
+                          ? ViewMode.list
+                          : ViewMode.grid,
+                    );
                     break;
                   case 'density':
-                    appState.setDensity(appState.density == Density.compact
-                        ? Density.comfortable
-                        : Density.compact);
+                    appState.setDensity(
+                      appState.density == Density.compact
+                          ? Density.comfortable
+                          : Density.compact,
+                    );
                     break;
                   case 'reload':
                     appState.loadContent(appState.tab, refresh: true);
@@ -142,15 +196,19 @@ class _HomeScreenState extends State<HomeScreen> {
               itemBuilder: (context) => [
                 PopupMenuItem(
                   value: 'view',
-                  child: Text(appState.viewMode == ViewMode.grid
-                      ? 'List view'
-                      : 'Grid view'),
+                  child: Text(
+                    appState.viewMode == ViewMode.grid
+                        ? 'List view'
+                        : 'Grid view',
+                  ),
                 ),
                 PopupMenuItem(
                   value: 'density',
-                  child: Text(appState.density == Density.compact
-                      ? 'Comfortable spacing'
-                      : 'Compact spacing'),
+                  child: Text(
+                    appState.density == Density.compact
+                        ? 'Comfortable spacing'
+                        : 'Compact spacing',
+                  ),
                 ),
                 const PopupMenuItem(value: 'reload', child: Text('Reload')),
               ],
@@ -165,7 +223,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (_searchOpen)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                    child: _SearchField(controller: _searchController, focusNode: _searchFocus),
+                    child: _SearchField(
+                      controller: _searchController,
+                      focusNode: _searchFocus,
+                    ),
                   ),
                 _CategoryChips(),
                 const Divider(height: 1),
@@ -199,59 +260,71 @@ class _HomeScreenState extends State<HomeScreen> {
         // platform — the classic one keeps its per-platform split below.
         switch (appState.layout) {
           case LayoutStyle.sidebar:
-            return _shell(_SidebarShell(
-              account: a,
-              narrow: narrow,
-              onOpen: _open,
-              searchController: _searchController,
-              searchFocus: _searchFocus,
-              gridFocus: _gridFocus,
-            ));
+            return _shell(
+              _SidebarShell(
+                account: a,
+                narrow: narrow,
+                onOpen: _open,
+                searchController: _searchController,
+                searchFocus: _searchFocus,
+                gridFocus: _gridFocus,
+              ),
+            );
           case LayoutStyle.showcase:
-            return _shell(_ShowcaseShell(
-              account: a,
-              narrow: narrow,
-              onOpen: _open,
-              searchController: _searchController,
-              searchFocus: _searchFocus,
-              gridFocus: _gridFocus,
-            ));
+            return _shell(
+              _ShowcaseShell(
+                account: a,
+                narrow: narrow,
+                onOpen: _open,
+                searchController: _searchController,
+                searchFocus: _searchFocus,
+                gridFocus: _gridFocus,
+              ),
+            );
           case LayoutStyle.dashboard:
-            return _shell(_DashboardShell(
-              account: a,
-              narrow: narrow,
-              onOpen: _open,
-              searchController: _searchController,
-              searchFocus: _searchFocus,
-              gridFocus: _gridFocus,
-            ));
+            return _shell(
+              _DashboardShell(
+                account: a,
+                narrow: narrow,
+                onOpen: _open,
+                searchController: _searchController,
+                searchFocus: _searchFocus,
+                gridFocus: _gridFocus,
+              ),
+            );
           case LayoutStyle.cinema:
-            return _shell(_CinemaShell(
-              account: a,
-              narrow: narrow,
-              onOpen: _open,
-              searchController: _searchController,
-              searchFocus: _searchFocus,
-              gridFocus: _gridFocus,
-            ));
+            return _shell(
+              _CinemaShell(
+                account: a,
+                narrow: narrow,
+                onOpen: _open,
+                searchController: _searchController,
+                searchFocus: _searchFocus,
+                gridFocus: _gridFocus,
+              ),
+            );
           case LayoutStyle.masterDetail:
-            return _shell(_MasterDetailShell(
-              account: a,
-              narrow: narrow,
-              onOpen: _open,
-              searchController: _searchController,
-              searchFocus: _searchFocus,
-              gridFocus: _gridFocus,
-            ));
+            return _shell(
+              _MasterDetailShell(
+                account: a,
+                narrow: narrow,
+                onOpen: _open,
+                searchController: _searchController,
+                searchFocus: _searchFocus,
+                gridFocus: _gridFocus,
+              ),
+            );
           case LayoutStyle.guide:
-            return _shell(_GuideShell(
-              account: a,
-              narrow: narrow,
-              onOpen: _open,
-              searchController: _searchController,
-              searchFocus: _searchFocus,
-              gridFocus: _gridFocus,
-            ));
+            return _shell(
+              _GuideShell(
+                account: a,
+                narrow: narrow,
+                onOpen: _open,
+                searchController: _searchController,
+                searchFocus: _searchFocus,
+                gridFocus: _gridFocus,
+              ),
+            );
           case LayoutStyle.classic:
             break;
         }
@@ -270,118 +343,194 @@ class _HomeScreenState extends State<HomeScreen> {
           child: FocusTraversalGroup(
             policy: ReadingOrderTraversalPolicy(),
             child: Scaffold(
-          appBar: AppBar(
-            title: Row(
-              children: [
-                const Text('Spectre'),
-                const SizedBox(width: 16),
-                if (!narrow && a != null) _AccountChip(account: a),
-                if (appState.guest) const _GuestChip(),
-                const Spacer(),
-              ],
-            ),
-            actions: [
-              if (narrow)
-                IconButton(
-                  tooltip: 'Search',
-                  icon: Icon(appState.search.isEmpty ? Icons.search : Icons.search_off),
-                  onPressed: () {
-                    setState(() => _searchOpen = !_searchOpen);
-                    if (_searchOpen) _searchFocus.requestFocus();
-                  },
-                )
-              else
-                SizedBox(width: 250, child: _SearchField(
-                  controller: _searchController,
-                  focusNode: _searchFocus,
-                )),
-              IconButton(
-                tooltip: appState.viewMode == ViewMode.grid ? 'List view (fits more)' : 'Grid view',
-                icon: Icon(appState.viewMode == ViewMode.grid
-                    ? Icons.view_list_outlined
-                    : Icons.grid_view_outlined),
-                onPressed: () => appState.setViewMode(
-                    appState.viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid),
-              ),
-              IconButton(
-                tooltip: appState.density == Density.compact
-                    ? 'Comfortable spacing'
-                    : 'Compact spacing (fits more)',
-                icon: Icon(appState.density == Density.compact
-                    ? Icons.density_medium
-                    : Icons.density_small),
-                onPressed: () => appState.setDensity(appState.density == Density.compact
-                    ? Density.comfortable
-                    : Density.compact),
-              ),
-              IconButton(
-                tooltip: 'Reload',
-                icon: const Icon(Icons.refresh),
-                onPressed: () => appState.loadContent(appState.tab, refresh: true),
-              ),
-              IconButton(
-                tooltip: 'Account & settings',
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => showSettingsSheet(context),
-              ),
-              const SizedBox(width: 6),
-            ],
-          ),
-          body: Column(
-            children: [
-              if (narrow && a != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: Align(alignment: Alignment.centerLeft, child: _AccountChip(account: a)),
-                ),
-              if (narrow && _searchOpen)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: _SearchField(controller: _searchController, focusNode: _searchFocus),
-                ),
-              _TabBar(),
-              Expanded(
-                child: narrow
-                    ? Column(
-                        children: [
-                          _CategoryChips(),
-                          const Divider(height: 1),
-                          Expanded(child: _ContentArea(gridFocus: _gridFocus)),
-                        ],
+              appBar: AppBar(
+                title: narrow
+                    ? const Text(
+                        'Spectre',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       )
                     : Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _CategoryRail(),
-                          const VerticalDivider(width: 1),
-                          Expanded(child: _ContentArea(gridFocus: _gridFocus)),
+                          const Text('Spectre'),
+                          if (!narrow) const SizedBox(width: 16),
+                          if (!narrow && a != null) _AccountChip(account: a),
+                          if (!narrow && appState.guest) const _GuestChip(),
+                          const Spacer(),
                         ],
                       ),
-              ),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: KeyHintBar(
-                        hints: [
-                          ('↑ ↓ ← →', 'move'),
-                          ('OK / Enter', 'open'),
-                          ('Esc', 'back'),
-                          ('Ctrl+F', 'search'),
-                        ],
+                actions: [
+                  if (narrow)
+                    IconButton(
+                      tooltip: 'Search',
+                      icon: Icon(
+                        appState.search.isEmpty
+                            ? Icons.search
+                            : Icons.search_off,
+                      ),
+                      onPressed: () {
+                        setState(() => _searchOpen = !_searchOpen);
+                        if (_searchOpen) _searchFocus.requestFocus();
+                      },
+                    )
+                  else
+                    SizedBox(
+                      width: 250,
+                      child: _SearchField(
+                        controller: _searchController,
+                        focusNode: _searchFocus,
                       ),
                     ),
-                    Text(
-                      '${appState.visibleItems.length} of ${appState.items.length} items',
-                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                  if (!narrow)
+                    IconButton(
+                      tooltip: appState.viewMode == ViewMode.grid
+                          ? 'List view (fits more)'
+                          : 'Grid view',
+                      icon: Icon(
+                        appState.viewMode == ViewMode.grid
+                            ? Icons.view_list_outlined
+                            : Icons.grid_view_outlined,
+                      ),
+                      onPressed: () => appState.setViewMode(
+                        appState.viewMode == ViewMode.grid
+                            ? ViewMode.list
+                            : ViewMode.grid,
+                      ),
                     ),
-                  ],
-                ),
+                  if (!narrow)
+                    IconButton(
+                      tooltip: appState.density == Density.compact
+                          ? 'Comfortable spacing'
+                          : 'Compact spacing (fits more)',
+                      icon: Icon(
+                        appState.density == Density.compact
+                            ? Icons.density_medium
+                            : Icons.density_small,
+                      ),
+                      onPressed: () => appState.setDensity(
+                        appState.density == Density.compact
+                            ? Density.comfortable
+                            : Density.compact,
+                      ),
+                    ),
+                  if (!narrow)
+                    IconButton(
+                      tooltip: 'Reload',
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () =>
+                          appState.loadContent(appState.tab, refresh: true),
+                    ),
+                  if (narrow)
+                    PopupMenuButton<String>(
+                      tooltip: 'View & refresh',
+                      icon: const Icon(Icons.tune),
+                      onSelected: (choice) {
+                        switch (choice) {
+                          case 'view':
+                            appState.setViewMode(
+                              appState.viewMode == ViewMode.grid
+                                  ? ViewMode.list
+                                  : ViewMode.grid,
+                            );
+                          case 'density':
+                            appState.setDensity(
+                              appState.density == Density.compact
+                                  ? Density.comfortable
+                                  : Density.compact,
+                            );
+                          case 'reload':
+                            appState.loadContent(appState.tab, refresh: true);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'view',
+                          child: Text('Toggle list / grid'),
+                        ),
+                        PopupMenuItem(
+                          value: 'density',
+                          child: Text('Toggle spacing'),
+                        ),
+                        PopupMenuItem(value: 'reload', child: Text('Reload')),
+                      ],
+                    ),
+                  IconButton(
+                    tooltip: 'Account & settings',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => showSettingsSheet(context),
+                  ),
+                  const SizedBox(width: 6),
+                ],
               ),
-            ],
-          ),
+              body: Column(
+                children: [
+                  if (narrow && a != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _AccountChip(account: a),
+                      ),
+                    ),
+                  if (narrow && _searchOpen)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: _SearchField(
+                        controller: _searchController,
+                        focusNode: _searchFocus,
+                      ),
+                    ),
+                  _TabBar(),
+                  Expanded(
+                    child: narrow
+                        ? Column(
+                            children: [
+                              _CategoryChips(),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: _ContentArea(gridFocus: _gridFocus),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _CategoryRail(),
+                              const VerticalDivider(width: 1),
+                              Expanded(
+                                child: _ContentArea(gridFocus: _gridFocus),
+                              ),
+                            ],
+                          ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    child: Row(
+                      children: [
+                        if (!narrow)
+                          const Expanded(
+                            child: KeyHintBar(
+                              hints: [
+                                ('↑ ↓ ← →', 'move'),
+                                ('OK / Enter', 'open'),
+                                ('Esc', 'back'),
+                                ('Ctrl+F', 'search'),
+                              ],
+                            ),
+                          ),
+                        Text(
+                          '${appState.visibleItems.length} of ${appState.items.length} items',
+                          style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -489,7 +638,11 @@ class _CategoryChips extends StatelessWidget {
 }
 
 class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({required this.label, required this.selected, required this.onSelect});
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final String label;
   final bool selected;
@@ -505,9 +658,13 @@ class _CategoryChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: selected ? AppTheme.accent.withValues(alpha: 0.16) : AppTheme.card,
+            color: selected
+                ? AppTheme.accent.withValues(alpha: 0.16)
+                : AppTheme.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? AppTheme.accent : AppTheme.border),
+            border: Border.all(
+              color: selected ? AppTheme.accent : AppTheme.border,
+            ),
           ),
           child: Text(
             label,
@@ -537,47 +694,67 @@ class _TabBar extends StatelessWidget {
         color: AppTheme.surface,
         border: Border(bottom: BorderSide(color: AppTheme.border)),
       ),
-      child: Row(
-        children: [
-          for (final entry in labels.entries)
-            FocusRing(
-              borderRadius: 4,
-              onSelect: () => appState.setTab(entry.key),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                decoration: BoxDecoration(
-                  color: appState.tab == entry.key
-                      ? AppTheme.accent.withValues(alpha: 0.14)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(entry.value.$2,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in labels.entries)
+              FocusRing(
+                borderRadius: 4,
+                onSelect: () => appState.setTab(entry.key),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: appState.tab == entry.key
+                        ? AppTheme.accent.withValues(alpha: 0.14)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        entry.value.$2,
                         size: 16,
-                        color: appState.tab == entry.key ? AppTheme.accent : AppTheme.muted),
-                    const SizedBox(width: 8),
-                    Text(
-                      entry.value.$1,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: appState.tab == entry.key ? FontWeight.w600 : FontWeight.w400,
-                        color: appState.tab == entry.key ? AppTheme.accent : AppTheme.muted,
+                        color: appState.tab == entry.key
+                            ? AppTheme.accent
+                            : AppTheme.muted,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        entry.value.$1,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: appState.tab == entry.key
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: appState.tab == entry.key
+                              ? AppTheme.accent
+                              : AppTheme.muted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          const Spacer(),
-          if (appState.busy)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: SizedBox(
-                  width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-        ],
+            if (appState.busy)
+              const Padding(
+                padding: EdgeInsets.only(right: 16),
+                child: SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -617,8 +794,10 @@ class _CategoryRail extends StatelessWidget {
             if (cats.isEmpty && !appState.busy)
               Padding(
                 padding: EdgeInsets.all(14),
-                child: Text('No categories',
-                    style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                child: Text(
+                  'No categories',
+                  style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                ),
               ),
           ],
         ),
@@ -628,7 +807,12 @@ class _CategoryRail extends StatelessWidget {
 }
 
 class _CategoryRow extends StatelessWidget {
-  const _CategoryRow({required this.label, required this.selected, required this.onSelect, this.count});
+  const _CategoryRow({
+    required this.label,
+    required this.selected,
+    required this.onSelect,
+    this.count,
+  });
 
   final String label;
   final bool selected;
@@ -642,7 +826,9 @@ class _CategoryRow extends StatelessWidget {
       onSelect: onSelect,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        color: selected ? AppTheme.accent.withValues(alpha: 0.12) : Colors.transparent,
+        color: selected
+            ? AppTheme.accent.withValues(alpha: 0.12)
+            : Colors.transparent,
         child: Row(
           children: [
             Expanded(
@@ -658,7 +844,10 @@ class _CategoryRow extends StatelessWidget {
               ),
             ),
             if (count != null)
-              Text('$count', style: TextStyle(fontSize: 10.5, color: AppTheme.muted)),
+              Text(
+                '$count',
+                style: TextStyle(fontSize: 10.5, color: AppTheme.muted),
+              ),
           ],
         ),
       ),
@@ -684,8 +873,10 @@ class _ContentArea extends StatelessWidget {
     }
     if (items.isEmpty) {
       return Center(
-        child: Text('Nothing to show for this category.',
-            style: TextStyle(fontSize: 13, color: AppTheme.muted)),
+        child: Text(
+          'Nothing to show for this category.',
+          style: TextStyle(fontSize: 13, color: AppTheme.muted),
+        ),
       );
     }
     return FocusTraversalGroup(
@@ -763,8 +954,10 @@ class _GuestChip extends StatelessWidget {
         children: [
           Icon(Icons.lock_open, size: 12, color: AppTheme.accent),
           SizedBox(width: 5),
-          Text('no login — open panel',
-              style: TextStyle(fontSize: 11, color: AppTheme.accent)),
+          Text(
+            'no login — open panel',
+            style: TextStyle(fontSize: 11, color: AppTheme.accent),
+          ),
         ],
       ),
     );
@@ -819,7 +1012,9 @@ class _StreamCard extends StatelessWidget {
                       child: Icon(
                         item.kind == 'series'
                             ? Icons.video_library_outlined
-                            : (item.kind == 'live' ? Icons.sensors : Icons.movie_outlined),
+                            : (item.kind == 'live'
+                                  ? Icons.sensors
+                                  : Icons.movie_outlined),
                         color: AppTheme.border,
                         size: 30,
                       ),
@@ -829,8 +1024,11 @@ class _StreamCard extends StatelessWidget {
                       item.icon!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, _, _) => Center(
-                        child: Icon(Icons.broken_image_outlined,
-                            color: AppTheme.border, size: 26),
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: AppTheme.border,
+                          size: 26,
+                        ),
                       ),
                       loadingBuilder: (c, child, p) => p == null
                           ? child
@@ -838,7 +1036,9 @@ class _StreamCard extends StatelessWidget {
                               child: SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             ),
                     ),
@@ -850,17 +1050,18 @@ class _StreamCard extends StatelessWidget {
                     Positioned(
                       left: 6,
                       top: 6,
-                      child: _Pill(
-                        label: 'LIVE',
-                        color: AppTheme.accent2,
-                      ),
+                      child: _Pill(label: 'LIVE', color: AppTheme.accent2),
                     ),
                 ],
               ),
             ),
             Padding(
               padding: EdgeInsets.fromLTRB(
-                  compact ? 8 : 10, compact ? 6 : 8, compact ? 8 : 10, compact ? 8 : 10),
+                compact ? 8 : 10,
+                compact ? 6 : 8,
+                compact ? 8 : 10,
+                compact ? 8 : 10,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -957,12 +1158,19 @@ class _FeaturedRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(title,
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.text,
-                      letterSpacing: 0.2)),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.text,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1035,9 +1243,8 @@ class _StreamRow extends StatelessWidget {
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) =>
                               Icon(Icons.tv, color: AppTheme.border, size: 15),
-                          loadingBuilder: (c, child, p) => p == null
-                              ? child
-                              : const SizedBox.shrink(),
+                          loadingBuilder: (c, child, p) =>
+                              p == null ? child : const SizedBox.shrink(),
                         ),
                 ),
               ),
@@ -1057,8 +1264,11 @@ class _StreamRow extends StatelessWidget {
             if (item.kind == 'series')
               Padding(
                 padding: EdgeInsets.only(left: 6),
-                child: Icon(Icons.video_library_outlined,
-                    size: 13, color: AppTheme.muted),
+                child: Icon(
+                  Icons.video_library_outlined,
+                  size: 13,
+                  color: AppTheme.muted,
+                ),
               ),
             if (item.kind == 'live')
               Padding(
@@ -1095,18 +1305,27 @@ class _ErrorPanel extends StatelessWidget {
             children: [
               Icon(Icons.error_outline, color: AppTheme.danger, size: 26),
               const SizedBox(height: 12),
-              Text(message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppTheme.danger, fontSize: 13)),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.danger, fontSize: 13),
+              ),
               if (hint != null) ...[
                 const SizedBox(height: 10),
-                Text(hint!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5)),
+                Text(
+                  hint!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.muted,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
+                ),
               ],
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => appState.loadContent(appState.tab, refresh: true),
+                onPressed: () =>
+                    appState.loadContent(appState.tab, refresh: true),
                 child: const Text('Retry'),
               ),
             ],
@@ -1123,6 +1342,7 @@ void showSeriesSheet(BuildContext context, StreamItem series) {
     context: context,
     backgroundColor: AppTheme.surface,
     isScrollControlled: true,
+    useSafeArea: true,
     builder: (context) => _SeriesSheet(series: series),
   );
 }
@@ -1148,19 +1368,31 @@ class _SeriesSheetState extends State<_SeriesSheet> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final c = appState.client;
-    if (c == null) return;
+    if (c == null) {
+      setState(() {
+        _loading = false;
+        _error = 'Sign in to load episodes.';
+      });
+      return;
+    }
     try {
       final eps = await c.seriesEpisodes(widget.series);
+      if (!mounted) return;
       setState(() {
         _episodes = eps;
         _loading = false;
         if (eps.isEmpty) _error = 'This series has no episodes listed.';
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = '$e';
+        _error = 'Could not load episodes. Check your connection and retry.';
       });
     }
   }
@@ -1179,21 +1411,36 @@ class _SeriesSheetState extends State<_SeriesSheet> {
               child: Row(
                 children: [
                   if (widget.series.icon != null)
-                    Image.network(widget.series.icon!,
-                        width: 54, height: 76, fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox(width: 54, height: 76)),
+                    Image.network(
+                      widget.series.icon!,
+                      width: 54,
+                      height: 76,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const SizedBox(width: 54, height: 76),
+                    ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.series.name,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        Text(
+                          widget.series.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         Text(
-                          [widget.series.genre, widget.series.rating]
-                              .where((e) => e != null && e.isNotEmpty)
-                              .join(' · '),
+                          [
+                            widget.series.genre,
+                            widget.series.rating,
+                          ].where((e) => e != null && e.isNotEmpty).join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 12, color: AppTheme.muted),
                         ),
                       ],
@@ -1211,46 +1458,77 @@ class _SeriesSheetState extends State<_SeriesSheet> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
-                      ? Center(
-                          child: Text(_error!,
-                              style: TextStyle(color: AppTheme.muted, fontSize: 13)))
-                      : ListView.builder(
-                          itemCount: _episodes.length,
-                          itemBuilder: (context, i) {
-                            final ep = _episodes[i];
-                            return FocusTraversalOrder(
-                              order: NumericFocusOrder(i.toDouble()),
-                              child: FocusRing(
-                                borderRadius: 3,
-                                onSelect: () {
-                                  Navigator.pop(context);
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => PlayerScreen(
-                                      item: ep,
-                                      overrideUrl: appState.client!.seriesEpisodeUrl(
-                                          ep.id, ep.containerExtension ?? 'mp4'),
-                                    ),
-                                  ));
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 11),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(ep.name,
-                                            style: TextStyle(
-                                                fontSize: 13, color: AppTheme.text)),
-                                      ),
-                                      Icon(Icons.play_arrow,
-                                          size: 17, color: AppTheme.accent),
-                                    ],
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppTheme.muted,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: _load,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _episodes.length,
+                      itemBuilder: (context, i) {
+                        final ep = _episodes[i];
+                        return FocusTraversalOrder(
+                          order: NumericFocusOrder(i.toDouble()),
+                          child: FocusRing(
+                            borderRadius: 3,
+                            onSelect: () {
+                              Navigator.pop(context);
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => PlayerScreen(
+                                    item: ep,
+                                    overrideUrl: appState.client!
+                                        .seriesEpisodeUrl(
+                                          ep.id,
+                                          ep.containerExtension ?? 'mp4',
+                                        ),
                                   ),
                                 ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 11,
                               ),
-                            );
-                          },
-                        ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      ep.name,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppTheme.text,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.play_arrow,
+                                    size: 17,
+                                    color: AppTheme.accent,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -1274,38 +1552,108 @@ class _ContentToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 12, 6),
-      child: Row(
-        children: [
-          Expanded(child: _SearchField(controller: controller, focusNode: focusNode)),
-          const SizedBox(width: 6),
-          IconButton(
-            tooltip: appState.viewMode == ViewMode.grid ? 'List view' : 'Grid view',
-            icon: Icon(appState.viewMode == ViewMode.grid
-                ? Icons.view_list_outlined
-                : Icons.grid_view_outlined),
-            onPressed: () => appState.setViewMode(
-                appState.viewMode == ViewMode.grid ? ViewMode.list : ViewMode.grid),
-          ),
-          IconButton(
-            tooltip: appState.density == Density.compact ? 'Comfortable' : 'Compact',
-            icon: Icon(appState.density == Density.compact
-                ? Icons.density_medium
-                : Icons.density_small),
-            onPressed: () => appState.setDensity(appState.density == Density.compact
-                ? Density.comfortable
-                : Density.compact),
-          ),
-          IconButton(
-            tooltip: 'Reload',
-            icon: const Icon(Icons.refresh),
-            onPressed: () => appState.loadContent(appState.tab, refresh: true),
-          ),
-          IconButton(
-            tooltip: 'Account & settings',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => showSettingsSheet(context),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, bounds) => bounds.maxWidth < 300
+            ? Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Search',
+                    icon: const Icon(Icons.search),
+                    onPressed: () => _showContentSearch(context, controller),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'View, refresh & account',
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (choice) {
+                      switch (choice) {
+                        case 'view':
+                          appState.setViewMode(
+                            appState.viewMode == ViewMode.grid
+                                ? ViewMode.list
+                                : ViewMode.grid,
+                          );
+                        case 'density':
+                          appState.setDensity(
+                            appState.density == Density.compact
+                                ? Density.comfortable
+                                : Density.compact,
+                          );
+                        case 'reload':
+                          appState.loadContent(appState.tab, refresh: true);
+                        case 'account':
+                          showSettingsSheet(context);
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'view',
+                        child: Text('Toggle list / grid'),
+                      ),
+                      PopupMenuItem(
+                        value: 'density',
+                        child: Text('Toggle spacing'),
+                      ),
+                      PopupMenuItem(value: 'reload', child: Text('Reload')),
+                      PopupMenuItem(
+                        value: 'account',
+                        child: Text('Account & settings'),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: _SearchField(
+                      controller: controller,
+                      focusNode: focusNode,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: appState.viewMode == ViewMode.grid
+                        ? 'List view'
+                        : 'Grid view',
+                    icon: Icon(
+                      appState.viewMode == ViewMode.grid
+                          ? Icons.view_list_outlined
+                          : Icons.grid_view_outlined,
+                    ),
+                    onPressed: () => appState.setViewMode(
+                      appState.viewMode == ViewMode.grid
+                          ? ViewMode.list
+                          : ViewMode.grid,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: appState.density == Density.compact
+                        ? 'Comfortable'
+                        : 'Compact',
+                    icon: Icon(
+                      appState.density == Density.compact
+                          ? Icons.density_medium
+                          : Icons.density_small,
+                    ),
+                    onPressed: () => appState.setDensity(
+                      appState.density == Density.compact
+                          ? Density.comfortable
+                          : Density.compact,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Reload',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () =>
+                        appState.loadContent(appState.tab, refresh: true),
+                  ),
+                  IconButton(
+                    tooltip: 'Account & settings',
+                    icon: const Icon(Icons.settings_outlined),
+                    onPressed: () => showSettingsSheet(context),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -1360,12 +1708,15 @@ class _SidebarShell extends StatelessWidget {
                           children: [
                             AppMark(size: 30),
                             const SizedBox(width: 10),
-                            Text('Spectre',
-                                style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.text,
-                                    letterSpacing: 0.2)),
+                            Text(
+                              'Spectre',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.text,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
                           ],
                         ),
                 ),
@@ -1389,15 +1740,22 @@ class _SidebarShell extends StatelessWidget {
                 ),
                 const Spacer(),
                 Padding(
-                  padding: EdgeInsets.fromLTRB(compact ? 10 : 14, 0, compact ? 10 : 14, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 10 : 14,
+                    0,
+                    compact ? 10 : 14,
+                    16,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (account != null && !compact) _AccountChip(account: account!),
-                      if (appState.guest) const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: _GuestChip(),
-                      ),
+                      if (account != null && !compact)
+                        _AccountChip(account: account!),
+                      if (appState.guest)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: _GuestChip(),
+                        ),
                     ],
                   ),
                 ),
@@ -1407,7 +1765,10 @@ class _SidebarShell extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                _ContentToolbar(controller: searchController, focusNode: searchFocus),
+                _ContentToolbar(
+                  controller: searchController,
+                  focusNode: searchFocus,
+                ),
                 _CategoryChips(),
                 const Divider(height: 1),
                 Expanded(child: _ContentArea(gridFocus: gridFocus)),
@@ -1449,28 +1810,47 @@ class _SidebarItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 12, vertical: 11),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 12,
+              vertical: 11,
+            ),
             decoration: BoxDecoration(
-              color: selected ? AppTheme.accent.withValues(alpha: 0.16) : Colors.transparent,
+              color: selected
+                  ? AppTheme.accent.withValues(alpha: 0.16)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: selected ? AppTheme.accent.withValues(alpha: 0.5) : Colors.transparent),
+                color: selected
+                    ? AppTheme.accent.withValues(alpha: 0.5)
+                    : Colors.transparent,
+              ),
             ),
             child: Row(
               children: [
-                Icon(icon, size: 19, color: selected ? AppTheme.accent : AppTheme.muted),
+                Icon(
+                  icon,
+                  size: 19,
+                  color: selected ? AppTheme.accent : AppTheme.muted,
+                ),
                 if (!compact) ...[
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(label,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          color: selected ? AppTheme.accent : AppTheme.text,
-                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        )),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: selected ? AppTheme.accent : AppTheme.text,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
                   ),
                   if (badge != null)
-                    Text(badge!, style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+                    Text(
+                      badge!,
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                    ),
                 ],
               ],
             ),
@@ -1517,32 +1897,45 @@ class _ShowcaseShell extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 10, 12, 4),
               child: Row(
                 children: [
-                  AppMark(size: 28),
-                  const SizedBox(width: 10),
+                  if (w >= 420) ...[
+                    AppMark(size: 28),
+                    const SizedBox(width: 10),
+                  ],
                   if (showWordmark)
-                    Text('Spectre',
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.text)),
-                  const SizedBox(width: 14),
+                    Text(
+                      'Spectre',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.text,
+                      ),
+                    ),
+                  if (w >= 420) const SizedBox(width: 14),
                   _NavPills(labels: w >= 950),
                   const Spacer(),
                   if (showSearchField) ...[
                     SizedBox(
                       width: 220,
-                      child: _SearchField(controller: searchController, focusNode: searchFocus),
+                      child: _SearchField(
+                        controller: searchController,
+                        focusNode: searchFocus,
+                      ),
                     ),
                     const SizedBox(width: 4),
                   ] else
                     IconButton(
                       tooltip: 'Search',
                       icon: const Icon(Icons.search),
-                      onPressed: () => FocusScope.of(context).requestFocus(searchFocus),
+                      onPressed: () =>
+                          _showContentSearch(context, searchController),
                     ),
-                  IconButton(
-                    tooltip: 'Reload',
-                    icon: const Icon(Icons.refresh),
-                    onPressed: () => appState.loadContent(appState.tab, refresh: true),
-                  ),
+                  if (w >= 420)
+                    IconButton(
+                      tooltip: 'Reload',
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () =>
+                          appState.loadContent(appState.tab, refresh: true),
+                    ),
                   IconButton(
                     tooltip: 'Account & settings',
                     icon: const Icon(Icons.settings_outlined),
@@ -1593,30 +1986,45 @@ class _NavPills extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               onTap: () => appState.setTab(tab),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: appState.tab == tab
                       ? AppTheme.accent.withValues(alpha: 0.18)
                       : Colors.transparent,
                   border: Border.all(
-                      color: appState.tab == tab ? AppTheme.accent : AppTheme.border),
+                    color: appState.tab == tab
+                        ? AppTheme.accent
+                        : AppTheme.border,
+                  ),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(icon,
-                        size: 15,
-                        color: appState.tab == tab ? AppTheme.accent : AppTheme.muted),
+                    Icon(
+                      icon,
+                      size: 15,
+                      color: appState.tab == tab
+                          ? AppTheme.accent
+                          : AppTheme.muted,
+                    ),
                     if (labels) ...[
                       const SizedBox(width: 7),
-                      Text(label,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight:
-                                appState.tab == tab ? FontWeight.w700 : FontWeight.w500,
-                            color: appState.tab == tab ? AppTheme.accent : AppTheme.text,
-                          )),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: appState.tab == tab
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: appState.tab == tab
+                              ? AppTheme.accent
+                              : AppTheme.text,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -1629,17 +2037,21 @@ class _NavPills extends StatelessWidget {
 }
 
 class _HeroBanner extends StatelessWidget {
-  const _HeroBanner({required this.item, required this.onPlay, required this.onBrowse});
+  const _HeroBanner({
+    required this.item,
+    required this.onPlay,
+    required this.onBrowse,
+  });
 
   Widget _heroGlyph(StreamItem item) => Center(
-        child: Icon(
-          item.kind == 'series'
-              ? Icons.video_library_outlined
-              : (item.kind == 'live' ? Icons.sensors : Icons.movie_outlined),
-          size: 104,
-          color: AppTheme.accent.withValues(alpha: 0.5),
-        ),
-      );
+    child: Icon(
+      item.kind == 'series'
+          ? Icons.video_library_outlined
+          : (item.kind == 'live' ? Icons.sensors : Icons.movie_outlined),
+      size: 104,
+      color: AppTheme.accent.withValues(alpha: 0.5),
+    ),
+  );
 
   final StreamItem item;
   final VoidCallback onPlay;
@@ -1666,7 +2078,10 @@ class _HeroBanner extends StatelessWidget {
               child: FractionallySizedBox(
                 widthFactor: 0.5,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       boxShadow: [
@@ -1709,15 +2124,20 @@ class _HeroBanner extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.auto_awesome, size: 13, color: AppTheme.accent),
+                      Icon(
+                        Icons.auto_awesome,
+                        size: 13,
+                        color: AppTheme.accent,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         appState.tab == ContentTab.live ? 'ON NOW' : 'FEATURED',
                         style: TextStyle(
-                            fontSize: 11,
-                            letterSpacing: 1.6,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.accent),
+                          fontSize: 11,
+                          letterSpacing: 1.6,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accent,
+                        ),
                       ),
                     ],
                   ),
@@ -1727,13 +2147,18 @@ class _HeroBanner extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.text),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.text,
+                    ),
                   ),
                   if (item.genre != null && item.genre!.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(item.genre!,
-                        maxLines: 1,
-                        style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    Text(
+                      item.genre!,
+                      maxLines: 1,
+                      style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                    ),
                   ],
                   const SizedBox(height: 14),
                   Row(
@@ -1769,25 +2194,34 @@ class _CategoryRails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cats = appState.categories;
-    final items = appState.items;
+    final items = appState.visibleItems;
     if (items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: appState.busy
+            ? const CircularProgressIndicator()
+            : Text(appState.error ?? 'No titles match this view'),
+      );
     }
-    // Group the loaded list by category so rails need no extra requests.
-    final rails = <(Category, List<StreamItem>)>[];
+    // Every item stays reachable: a shelf scrolls lazily, including sparse
+    // categories and items whose category is absent from the panel's list.
+    final rails = <(String, List<StreamItem>)>[];
+    final knownIds = cats.map((c) => c.id).toSet();
     for (final c in cats) {
       final inCat = items.where((i) => i.categoryId == c.id).toList();
-      if (inCat.length >= 4) rails.add((c, inCat.take(18).toList()));
+      if (inCat.isNotEmpty) rails.add((c.name, inCat));
     }
-    if (rails.isEmpty) {
-      return _ContentArea(gridFocus: FocusNode());
+    final uncategorized = items
+        .where((i) => !knownIds.contains(i.categoryId))
+        .toList();
+    if (uncategorized.isNotEmpty) {
+      rails.add((cats.isEmpty ? 'All titles' : 'Other', uncategorized));
     }
     return ListView(
       padding: const EdgeInsets.only(bottom: 14),
       children: [
-        for (final (cat, list) in rails)
+        for (final (title, list) in rails)
           _FeaturedRow(
-            title: cat.name,
+            title: title,
             items: list,
             onOpen: (item) => onOpen(context, item),
           ),
@@ -1820,6 +2254,29 @@ class _DashboardShell extends StatefulWidget {
 
 class _DashboardShellState extends State<_DashboardShell> {
   bool _entered = false;
+  final _sectionFocus = FocusNode(debugLabel: 'dashboard-section');
+  final _tileFocus = <ContentTab, FocusNode>{
+    for (final tab in ContentTab.values)
+      tab: FocusNode(debugLabel: 'dashboard-${tab.name}'),
+  };
+
+  void _leaveSection() {
+    if (!_entered) return;
+    final tab = appState.tab;
+    setState(() => _entered = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _tileFocus[tab]?.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sectionFocus.dispose();
+    for (final node in _tileFocus.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -1835,65 +2292,100 @@ class _DashboardShellState extends State<_DashboardShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 12, 6),
-              child: Row(
+    return PopScope(
+      canPop: !_entered,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leaveSection();
+      },
+      child: CallbackShortcuts(
+        bindings: _entered
+            ? <ShortcutActivator, VoidCallback>{
+                const SingleActivator(LogicalKeyboardKey.escape): _leaveSection,
+                const SingleActivator(LogicalKeyboardKey.goBack): _leaveSection,
+                const SingleActivator(LogicalKeyboardKey.browserBack):
+                    _leaveSection,
+                const SingleActivator(LogicalKeyboardKey.gameButtonB):
+                    _leaveSection,
+              }
+            : const <ShortcutActivator, VoidCallback>{},
+        child: Focus(
+          focusNode: _sectionFocus,
+          child: Scaffold(
+            body: SafeArea(
+              child: Column(
                 children: [
-                  if (_entered)
-                    IconButton(
-                      tooltip: 'Back to sections',
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => setState(() => _entered = false),
-                    )
-                  else
-                    AppMark(size: 30),
-                  const SizedBox(width: 10),
-                  if (!widget.narrow) ...[
-                    Text(_entered ? appState.tabLabel : 'Spectre',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.text)),
-                    const SizedBox(width: 14),
-                  ],
-                  const Spacer(),
-                  SizedBox(
-                    width: widget.narrow ? 150 : 240,
-                    child: _SearchField(
-                        controller: widget.searchController, focusNode: widget.searchFocus),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 12, 6),
+                    child: Row(
+                      children: [
+                        if (_entered)
+                          IconButton(
+                            tooltip: 'Back to sections',
+                            icon: const Icon(Icons.arrow_back),
+                            onPressed: _leaveSection,
+                          )
+                        else
+                          AppMark(size: 30),
+                        const SizedBox(width: 10),
+                        if (!widget.narrow) ...[
+                          Text(
+                            _entered ? appState.tabLabel : 'Spectre',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.text,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                        ],
+                        const Spacer(),
+                        SizedBox(
+                          width: widget.narrow ? 150 : 240,
+                          child: _SearchField(
+                            controller: widget.searchController,
+                            focusNode: widget.searchFocus,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Account & settings',
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () => showSettingsSheet(context),
+                        ),
+                      ],
+                    ),
                   ),
-                  IconButton(
-                    tooltip: 'Account & settings',
-                    icon: const Icon(Icons.settings_outlined),
-                    onPressed: () => showSettingsSheet(context),
+                  Expanded(
+                    child: !_entered
+                        ? _DashboardTiles(
+                            narrow: widget.narrow,
+                            account: widget.account,
+                            focusNodes: _tileFocus,
+                            onEnter: (tab) {
+                              appState.setTab(tab);
+                              setState(() => _entered = true);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) _sectionFocus.requestFocus();
+                              });
+                            },
+                          )
+                        : Column(
+                            children: [
+                              _CategoryChips(),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: _ContentArea(
+                                  gridFocus: widget.gridFocus,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
+                  if (appState.busy)
+                    const LinearProgressIndicator(minHeight: 2),
                 ],
               ),
             ),
-            Expanded(
-              child: !_entered
-                  ? _DashboardTiles(
-                      narrow: widget.narrow,
-                      account: widget.account,
-                      onEnter: (tab) {
-                        appState.setTab(tab);
-                        setState(() => _entered = true);
-                      },
-                    )
-                  : Column(
-                      children: [
-                        _CategoryChips(),
-                        const Divider(height: 1),
-                        Expanded(child: _ContentArea(gridFocus: widget.gridFocus)),
-                      ],
-                    ),
-            ),
-            if (appState.busy) const LinearProgressIndicator(minHeight: 2),
-          ],
+          ),
         ),
       ),
     );
@@ -1904,19 +2396,36 @@ class _DashboardTiles extends StatelessWidget {
   const _DashboardTiles({
     required this.narrow,
     required this.account,
+    required this.focusNodes,
     required this.onEnter,
   });
 
   final bool narrow;
   final AccountInfo? account;
+  final Map<ContentTab, FocusNode> focusNodes;
   final void Function(ContentTab) onEnter;
 
   @override
   Widget build(BuildContext context) {
     const tiles = <(String, IconData, ContentTab, String)>[
-      ('Live TV', Icons.live_tv_outlined, ContentTab.live, 'Channels, now and next'),
-      ('Movies', Icons.movie_outlined, ContentTab.movies, 'The on-demand library'),
-      ('Series', Icons.video_library_outlined, ContentTab.series, 'Seasons and episodes'),
+      (
+        'Live TV',
+        Icons.live_tv_outlined,
+        ContentTab.live,
+        'Channels, now and next',
+      ),
+      (
+        'Movies',
+        Icons.movie_outlined,
+        ContentTab.movies,
+        'The on-demand library',
+      ),
+      (
+        'Series',
+        Icons.video_library_outlined,
+        ContentTab.series,
+        'Seasons and episodes',
+      ),
     ];
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
@@ -1938,6 +2447,7 @@ class _DashboardTiles extends StatelessWidget {
             for (final (idx, (label, icon, tab, blurb)) in tiles.indexed)
               _SectionTile(
                 autofocus: idx == 0,
+                focusNode: focusNodes[tab],
                 label: label,
                 icon: icon,
                 blurb: blurb,
@@ -1968,6 +2478,7 @@ class _SectionTile extends StatelessWidget {
     this.count,
     this.loading = false,
     this.autofocus = false,
+    this.focusNode,
   });
 
   final String label;
@@ -1978,10 +2489,12 @@ class _SectionTile extends StatelessWidget {
   final int? count;
   final bool loading;
   final bool autofocus;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
     return FocusRing(
+      focusNode: focusNode,
       borderRadius: 18,
       autofocus: autofocus,
       onSelect: onTap,
@@ -2006,7 +2519,10 @@ class _SectionTile extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [AppTheme.accent.withValues(alpha: 0.18), AppTheme.card],
+                      colors: [
+                        AppTheme.accent.withValues(alpha: 0.18),
+                        AppTheme.card,
+                      ],
                     ),
                   ),
                 ),
@@ -2049,18 +2565,23 @@ class _SectionTile extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: AppTheme.background.withValues(alpha: 0.55),
                         borderRadius: BorderRadius.circular(13),
-                        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: AppTheme.accent.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Icon(icon, color: AppTheme.accent, size: 21),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(label,
-                            style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.text)),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.text,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           count == null ? blurb : '$count  ·  $blurb',
@@ -2101,13 +2622,19 @@ class _ArtMosaic extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: 2),
-                    child: _Art(url: it.icon, label: it.name, contain: it.kind == 'live'),
+                    child: _Art(
+                      url: it.icon,
+                      label: it.name,
+                      contain: it.kind == 'live',
+                    ),
                   ),
                 ),
             ],
           );
         }
-        final perRow = items.length > 4 && items.first.kind == 'live' ? 3 : (tiles.length <= 4 ? 2 : 3);
+        final perRow = items.length > 4 && items.first.kind == 'live'
+            ? 3
+            : (tiles.length <= 4 ? 2 : 3);
         final rows = (tiles.length / perRow).ceil();
         return Column(
           children: [
@@ -2165,38 +2692,39 @@ class _Art extends StatelessWidget {
       child: url == null || url!.isEmpty
           ? _label()
           : Padding(
-        padding: EdgeInsets.all(contain ? 3 : 0),
-        child: Image.network(
-        url!,
-        fit: contain ? BoxFit.contain : BoxFit.cover,
-        // Ask for a small decode: these are thumbnails, not full posters.
-        cacheWidth: 320,
-        errorBuilder: (_, _, _) => _label(),
-        loadingBuilder: (c, child, p) => p == null ? child : const SizedBox.shrink(),
-      ),
-      ),
+              padding: EdgeInsets.all(contain ? 3 : 0),
+              child: Image.network(
+                url!,
+                fit: contain ? BoxFit.contain : BoxFit.cover,
+                // Ask for a small decode: these are thumbnails, not full posters.
+                cacheWidth: 320,
+                errorBuilder: (_, _, _) => _label(),
+                loadingBuilder: (c, child, p) =>
+                    p == null ? child : const SizedBox.shrink(),
+              ),
+            ),
     );
   }
 
   /// No artwork (or it 404s): print the name over the soft tile, so a wall of
   /// live channels still reads as content instead of empty boxes.
   Widget _label() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Text(
-            label ?? '',
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              height: 1.2,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.muted,
-            ),
-          ),
+    child: Padding(
+      padding: const EdgeInsets.all(6),
+      child: Text(
+        label ?? '',
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 10,
+          height: 1.2,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.muted,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _AccountCard extends StatelessWidget {
@@ -2221,20 +2749,28 @@ class _AccountCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(account?.username ?? appState.username,
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.text)),
+                Text(
+                  account?.username ?? appState.username,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.text,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   account == null
                       ? appState.server
                       : (account!.expired
-                          ? 'EXPIRED ${account!.expiryLabel}'
-                          : 'expires ${account!.expiryLabel} · '
-                              '${account!.activeConnections}/${account!.maxConnections} connections'),
+                            ? 'EXPIRED ${account!.expiryLabel}'
+                            : 'expires ${account!.expiryLabel} · '
+                                  '${account!.activeConnections}/${account!.maxConnections} connections'),
                   style: TextStyle(
-                      fontSize: 11.5,
-                      color: account?.expired == true ? AppTheme.danger : AppTheme.muted),
+                    fontSize: 11.5,
+                    color: account?.expired == true
+                        ? AppTheme.danger
+                        : AppTheme.muted,
+                  ),
                 ),
               ],
             ),
@@ -2277,10 +2813,15 @@ class _CinemaShell extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Container(decoration: BoxDecoration(gradient: AppTheme.headerGradient())),
+          Container(
+            decoration: BoxDecoration(gradient: AppTheme.headerGradient()),
+          ),
           if (hero?.icon != null)
-            Image.network(hero!.icon!, fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const SizedBox.shrink()),
+            Image.network(
+              hero!.icon!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
           // Darken top and bottom: the title block sits on the lower third.
           DecoratedBox(
             decoration: BoxDecoration(
@@ -2302,21 +2843,27 @@ class _CinemaShell extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
                   child: Row(
                     children: [
-                      AppMark(size: 28),
-                      const SizedBox(width: 10),
+                      if (MediaQuery.sizeOf(context).width >= 380) ...[
+                        AppMark(size: 28),
+                        const SizedBox(width: 10),
+                      ],
                       if (!narrow)
-                        Text('Spectre',
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.text)),
+                        Text(
+                          'Spectre',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.text,
+                          ),
+                        ),
                       const SizedBox(width: 16),
                       _NavPills(labels: !narrow),
                       const Spacer(),
                       IconButton(
                         tooltip: 'Search',
                         icon: const Icon(Icons.search),
-                        onPressed: () => FocusScope.of(context).requestFocus(searchFocus),
+                        onPressed: () =>
+                            _showContentSearch(context, searchController),
                       ),
                       IconButton(
                         tooltip: 'Account & settings',
@@ -2334,27 +2881,36 @@ class _CinemaShell extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          appState.tab == ContentTab.live ? 'ON NOW' : 'FEATURED',
+                          appState.tab == ContentTab.live
+                              ? 'ON NOW'
+                              : 'FEATURED',
                           style: TextStyle(
-                              fontSize: 11,
-                              letterSpacing: 1.8,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.accent),
+                            fontSize: 11,
+                            letterSpacing: 1.8,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.accent,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        Text(hero.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.text)),
+                        Text(
+                          hero.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.text,
+                          ),
+                        ),
                         const SizedBox(height: 10),
                         Row(
                           children: [
                             FilledButton.icon(
                               onPressed: () => onOpen(context, hero),
-                              icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 20,
+                              ),
                               label: const Text('Play'),
                             ),
                             const SizedBox(width: 10),
@@ -2387,7 +2943,12 @@ class _CinemaShell extends StatelessWidget {
                     ),
                   ),
                 if (appState.error != null)
-                  Expanded(child: _ErrorPanel(message: appState.error!, hint: appState.errorHint)),
+                  Expanded(
+                    child: _ErrorPanel(
+                      message: appState.error!,
+                      hint: appState.errorHint,
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 if (appState.busy) const LinearProgressIndicator(minHeight: 2),
               ],
@@ -2440,11 +3001,14 @@ class _MasterDetailShell extends StatelessWidget {
                     children: [
                       AppMark(size: 24),
                       const SizedBox(width: 9),
-                      Text('Spectre',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.text)),
+                      Text(
+                        'Spectre',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.text,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -2481,7 +3045,10 @@ class _MasterDetailShell extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                _ContentToolbar(controller: searchController, focusNode: searchFocus),
+                _ContentToolbar(
+                  controller: searchController,
+                  focusNode: searchFocus,
+                ),
                 Expanded(child: _ContentArea(gridFocus: gridFocus)),
                 if (appState.busy) const LinearProgressIndicator(minHeight: 2),
               ],
@@ -2517,7 +3084,10 @@ class _MasterTabs extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 onTap: () => appState.setTab(tab),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 9,
+                  ),
                   decoration: BoxDecoration(
                     color: appState.tab == tab
                         ? AppTheme.accent.withValues(alpha: 0.16)
@@ -2526,17 +3096,26 @@ class _MasterTabs extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(icon,
-                          size: 16,
-                          color: appState.tab == tab ? AppTheme.accent : AppTheme.muted),
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: appState.tab == tab
+                            ? AppTheme.accent
+                            : AppTheme.muted,
+                      ),
                       const SizedBox(width: 9),
-                      Text(label,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: appState.tab == tab ? AppTheme.accent : AppTheme.text,
-                            fontWeight:
-                                appState.tab == tab ? FontWeight.w700 : FontWeight.w500,
-                          )),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: appState.tab == tab
+                              ? AppTheme.accent
+                              : AppTheme.text,
+                          fontWeight: appState.tab == tab
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -2574,7 +3153,9 @@ class _MasterRow extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             decoration: BoxDecoration(
-              color: selected ? AppTheme.accent.withValues(alpha: 0.16) : Colors.transparent,
+              color: selected
+                  ? AppTheme.accent.withValues(alpha: 0.16)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -2592,7 +3173,10 @@ class _MasterRow extends StatelessWidget {
                   ),
                 ),
                 if (count != null)
-                  Text('$count', style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+                  Text(
+                    '$count',
+                    style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                  ),
               ],
             ),
           ),
@@ -2630,43 +3214,53 @@ class _GuideShellState extends State<_GuideShell> {
 
   @override
   Widget build(BuildContext context) {
-    // Flatten categories + their items into one scrollable list.
-    final rows = <Widget>[];
+    // Keep only lightweight row descriptors; build channel widgets on demand.
+    final rows = <(String?, int, StreamItem?)>[];
     final cats = appState.categories;
     final all = appState.visibleItems;
-    // The very first row takes focus on open, so a remote has somewhere to go.
-    var firstRow = true;
-    Widget rowFor(StreamItem i) {
-      final w = _row(i, autofocus: firstRow);
-      firstRow = false;
-      return w;
-    }
-
     if (cats.isEmpty) {
-      rows.addAll(all.map(rowFor));
+      rows.addAll(all.map((i) => (null, 0, i)));
     } else {
+      final knownIds = cats.map((c) => c.id).toSet();
       for (final c in cats) {
         final inCat = all.where((i) => i.categoryId == c.id).toList();
         if (inCat.isEmpty) continue;
-        rows.add(_GuideHeader(label: c.name, count: inCat.length));
-        rows.addAll(inCat.take(120).map(rowFor));
+        rows.add((c.name, inCat.length, null));
+        rows.addAll(inCat.map((i) => (null, 0, i)));
+      }
+      final other = all.where((i) => !knownIds.contains(i.categoryId)).toList();
+      if (other.isNotEmpty) {
+        rows.add(('Other', other.length, null));
+        rows.addAll(other.map((i) => (null, 0, i)));
       }
     }
+    final firstItemIndex = rows.indexWhere((row) => row.$3 != null);
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _ContentToolbar(controller: widget.searchController, focusNode: widget.searchFocus),
+            _ContentToolbar(
+              controller: widget.searchController,
+              focusNode: widget.searchFocus,
+            ),
             Container(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               alignment: Alignment.centerLeft,
               child: Row(
                 children: [
-                  Icon(Icons.view_list_outlined, size: 14, color: AppTheme.accent),
+                  Icon(
+                    Icons.view_list_outlined,
+                    size: 14,
+                    color: AppTheme.accent,
+                  ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Guide · ${rows.whereType<Widget>().length} rows · now/next loads as you move',
-                    style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                  Expanded(
+                    child: Text(
+                      'Guide · ${all.length} channels · now/next on focus',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                    ),
                   ),
                 ],
               ),
@@ -2674,11 +3268,22 @@ class _GuideShellState extends State<_GuideShell> {
             const Divider(height: 1),
             Expanded(
               child: rows.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: appState.busy
+                          ? const CircularProgressIndicator()
+                          : Text(
+                              appState.error ?? 'No channels match this view',
+                            ),
+                    )
                   : ListView.builder(
                       padding: const EdgeInsets.only(bottom: 16),
                       itemCount: rows.length,
-                      itemBuilder: (context, i) => rows[i],
+                      itemBuilder: (context, i) {
+                        final row = rows[i];
+                        return row.$3 == null
+                            ? _GuideHeader(label: row.$1!, count: row.$2)
+                            : _row(row.$3!, autofocus: i == firstItemIndex);
+                      },
                     ),
             ),
             if (appState.busy) const LinearProgressIndicator(minHeight: 2),
@@ -2689,13 +3294,13 @@ class _GuideShellState extends State<_GuideShell> {
   }
 
   Widget _row(StreamItem item, {bool autofocus = false}) => _GuideRow(
-        item: item,
-        autofocus: autofocus,
-        epg: appState.epgCache[item.id],
-        loading: appState.epgPending.contains(item.id),
-        onFocus: () => _loadEpg(item),
-        onSelect: () => widget.onOpen(context, item),
-      );
+    item: item,
+    autofocus: autofocus,
+    epg: appState.epgCache[item.id],
+    loading: appState.epgPending.contains(item.id),
+    onFocus: () => _loadEpg(item),
+    onSelect: () => widget.onOpen(context, item),
+  );
 }
 
 class _GuideHeader extends StatelessWidget {
@@ -2720,14 +3325,17 @@ class _GuideHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.text,
-                    letterSpacing: 0.3)),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.text,
+                letterSpacing: 0.3,
+              ),
+            ),
           ),
           Text('$count', style: TextStyle(fontSize: 11, color: AppTheme.muted)),
         ],
@@ -2782,20 +3390,28 @@ class _GuideRow extends StatelessWidget {
                   color: AppTheme.surface,
                   child: item.icon == null
                       ? Icon(Icons.tv, size: 14, color: AppTheme.border)
-                      : Image.network(item.icon!, fit: BoxFit.contain,
+                      : Image.network(
+                          item.icon!,
+                          fit: BoxFit.contain,
                           errorBuilder: (_, _, _) =>
-                              Icon(Icons.tv, size: 14, color: AppTheme.border)),
+                              Icon(Icons.tv, size: 14, color: AppTheme.border),
+                        ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 3,
-              child: Text(item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 12.5, color: AppTheme.text, fontWeight: FontWeight.w600)),
+              child: Text(
+                item.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppTheme.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -2807,8 +3423,9 @@ class _GuideRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 11.5,
-                    color: now == null ? AppTheme.muted : AppTheme.accent),
+                  fontSize: 11.5,
+                  color: now == null ? AppTheme.muted : AppTheme.accent,
+                ),
               ),
             ),
           ],

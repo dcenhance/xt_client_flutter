@@ -39,6 +39,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   late final VideoController _controller;
   final _videoKey = GlobalKey<VideoState>();
   final _keyboardFocus = FocusNode(debugLabel: 'player-keys');
+  final _playFocus = FocusNode(debugLabel: 'player-play');
 
   late StreamItem _current;
   List<StreamItem> _queue = const [];
@@ -59,6 +60,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _epgTimer;
   Timer? _chromeTimer;
   TapDownDetails? _pendingTap;
+  int _epgGeneration = 0;
 
   static const _chromeTimeout = Duration(seconds: 4);
 
@@ -72,7 +74,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player = Player();
     _controller = VideoController(_player);
 
-    _queue = appState.visibleItems.isEmpty ? [widget.item] : appState.visibleItems;
+    _queue = appState.visibleItems.isEmpty
+        ? [widget.item]
+        : appState.visibleItems;
     _index = _queue.indexWhere((e) => e.id == widget.item.id);
     if (_index < 0) {
       _queue = [..._queue, widget.item];
@@ -95,6 +99,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _keyboardFocus.requestFocus();
       _openCurrent();
     });
@@ -109,6 +114,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _playingSub?.cancel();
     _bufferingSub?.cancel();
     _player.dispose();
+    _playFocus.dispose();
     _keyboardFocus.dispose();
     if (_fullscreen) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -123,7 +129,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _chromeTimer?.cancel();
     if (!_chrome || !_playing) return;
     _chromeTimer = Timer(_chromeTimeout, () {
-      if (!mounted || !_playing) return;
+      if (!mounted || !_playing || !_keyboardFocus.hasPrimaryFocus) return;
       setState(() => _chrome = false);
     });
   }
@@ -134,6 +140,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _toggleChrome() {
+    if (_chrome && !_keyboardFocus.hasPrimaryFocus) {
+      _keyboardFocus.requestFocus();
+    }
     setState(() => _chrome = !_chrome);
     _restartChromeTimer();
   }
@@ -143,6 +152,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _cinema = !_cinema;
       _chrome = !_cinema;
     });
+    if (_cinema) _keyboardFocus.requestFocus();
     _restartChromeTimer();
   }
 
@@ -156,8 +166,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
     if (next) {
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      await SystemChrome.setPreferredOrientations(
-          const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
     } else {
       await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
@@ -168,7 +180,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // ── playback ─────────────────────────────────────────────────────────────
 
   String _urlFor(StreamItem item) {
-    if (widget.overrideUrl != null && item.id == widget.item.id) return widget.overrideUrl!;
+    if (widget.overrideUrl != null && item.id == widget.item.id) {
+      return widget.overrideUrl!;
+    }
     final c = appState.client!;
     if (item.kind == 'movie') return c.vodUrl(item);
     if (item.kind == 'episode') {
@@ -191,9 +205,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _current = _queue[_index];
       _epg = const [];
     });
+    ++_epgGeneration;
     final url = _urlFor(_current);
-    debugPrint('playing: $url');
+    // Stream URLs carry username and password. Never print one in diagnostics.
     await _player.open(Media(url), play: true);
+    if (!mounted) return;
     await _player.setVolume(_volume);
     if (_current.kind == 'live') {
       _loadEpg();
@@ -209,15 +225,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _loadEpg() async {
     final c = appState.client;
     if (c == null) return;
+    final generation = _epgGeneration;
     final entries = await c.shortEpg(_current.id, limit: 2);
-    if (!mounted) return;
+    if (!mounted || generation != _epgGeneration) return;
     setState(() => _epg = entries);
   }
 
   void _step(int delta) {
     if (_queue.length < 2) return;
+    final next = (_index + delta).clamp(0, _queue.length - 1);
+    if (next == _index) return;
     setState(() {
-      _index = (_index + delta).clamp(0, _queue.length - 1);
+      _index = next;
     });
     _openCurrent();
   }
@@ -235,7 +254,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_current.kind == 'live') return;
     final pos = _player.state.position;
     final target = pos + Duration(seconds: seconds);
-    await _player.seek(target.isNegative ? Duration.zero : target);
+    final duration = _player.state.duration;
+    await _player.seek(
+      target < Duration.zero
+          ? Duration.zero
+          : duration > Duration.zero && target > duration
+          ? duration
+          : target,
+    );
     _poke();
   }
 
@@ -274,6 +300,38 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     final key = event.logicalKey;
     final seekable = _current.kind != 'live';
+    // A control owns its arrows and OK. The parent must not steal them for
+    // channel switching or a remote can never navigate the playback dock.
+    if (!node.hasPrimaryFocus &&
+        {
+          LogicalKeyboardKey.arrowRight,
+          LogicalKeyboardKey.arrowLeft,
+          LogicalKeyboardKey.arrowUp,
+          LogicalKeyboardKey.arrowDown,
+          LogicalKeyboardKey.select,
+          LogicalKeyboardKey.enter,
+        }.contains(key)) {
+      return KeyEventResult.ignored;
+    }
+    if (node.hasPrimaryFocus &&
+        !_chrome &&
+        {
+          LogicalKeyboardKey.select,
+          LogicalKeyboardKey.enter,
+          LogicalKeyboardKey.arrowDown,
+        }.contains(key)) {
+      _poke();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _playFocus.requestFocus();
+      });
+      return KeyEventResult.handled;
+    }
+    if (node.hasPrimaryFocus &&
+        _chrome &&
+        key == LogicalKeyboardKey.arrowDown) {
+      _playFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.arrowRight) {
       if (seekable) {
         _seek(10);
@@ -387,6 +445,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2.4),
                 ),
               ),
+            if (!_playing && !_buffering && _error == null && !_chrome)
+              Center(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 44,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             PlayerTopChrome(
               visible: _chrome,
               title: _current.name,
@@ -417,6 +494,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
               onFullscreen: _toggleFullscreen,
               onScrub: (d) => _player.seek(d),
               onPoke: _poke,
+              canPrevious: _index > 0,
+              canNext: _index < _queue.length - 1,
+              cinema: _cinema,
+              playFocusNode: _playFocus,
             ),
           ],
         ),
@@ -435,23 +516,41 @@ class _PlayerScreenState extends State<PlayerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.warning_amber_rounded, color: AppTheme.danger, size: 30),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppTheme.danger,
+                  size: 30,
+                ),
                 const SizedBox(height: 12),
-                Text('Stream failed',
-                    style: TextStyle(fontSize: 15, color: AppTheme.text)),
+                Text(
+                  'Stream failed',
+                  style: TextStyle(fontSize: 15, color: AppTheme.text),
+                ),
                 const SizedBox(height: 8),
-                Text(_error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 12, color: AppTheme.muted, height: 1.5)),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.muted,
+                    height: 1.5,
+                  ),
+                ),
                 const SizedBox(height: 18),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    FilledButton(onPressed: _openCurrent, child: const Text('Retry')),
-                    const SizedBox(width: 10),
-                    OutlinedButton(
-                        onPressed: () => _step(1), child: const Text('Next')),
+                    FilledButton(
+                      onPressed: _openCurrent,
+                      child: const Text('Retry'),
+                    ),
+                    if (_index < _queue.length - 1) ...[
+                      const SizedBox(width: 10),
+                      OutlinedButton(
+                        onPressed: () => _step(1),
+                        child: const Text('Next'),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -462,4 +561,3 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 }
-

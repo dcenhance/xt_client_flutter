@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../main.dart';
 import '../panels.dart';
@@ -29,8 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
   late final FocusNode _userFocus;
   late final FocusNode _passFocus;
   final ScrollController _scroll = ScrollController();
-  // Pointer-only control: it stays tappable but out of the arrow/D-pad order.
-  final FocusNode _revealFocus = FocusNode(skipTraversal: true);
+  // Right from the end of the password reaches this secondary control without
+  // adding an extra stop to the primary vertical sign-in route.
+  late final FocusNode _revealFocus;
   final GlobalKey _errorKey = GlobalKey();
   String? _server;
   bool _obscure = true;
@@ -41,13 +43,38 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     _user = TextEditingController(text: appState.username);
     _pass = TextEditingController(text: appState.password);
+    _revealFocus = FocusNode(
+      skipTraversal: true,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          _passFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+    );
     // A remote has no pointer: the arrow keys must walk the form, but a focused
     // text field swallows them for the caret. Both nodes therefore get their own
     // key handler — it runs before the field's editing shortcuts, so up/down
     // still move the focus, while left/right keep editing until the caret hits
     // the edge of the text.
-    _userFocus = dpadTextFocusNode(controller: _user)..addListener(_onFocusChanged);
-    _passFocus = dpadTextFocusNode(controller: _pass)..addListener(_onFocusChanged);
+    _userFocus = dpadTextFocusNode(controller: _user)
+      ..addListener(_onFocusChanged);
+    _passFocus = dpadTextFocusNode(
+      controller: _pass,
+      onKey: (event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowRight &&
+            _pass.selection.isValid &&
+            _pass.selection.isCollapsed &&
+            _pass.selection.baseOffset == _pass.text.length) {
+          _revealFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        return null;
+      },
+    )..addListener(_onFocusChanged);
     appState.addListener(_onAppStateChanged);
   }
 
@@ -124,7 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                       onTap: () => Navigator.pop(context, p),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
                         decoration: BoxDecoration(
                           color: AppTheme.card,
                           border: Border.all(
@@ -136,19 +166,31 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.dns_outlined, size: 16, color: AppTheme.accent),
+                            Icon(
+                              Icons.dns_outlined,
+                              size: 16,
+                              color: AppTheme.accent,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(p.name,
-                                      style: TextStyle(
-                                          fontSize: 13, color: AppTheme.text)),
+                                  Text(
+                                    p.name,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppTheme.text,
+                                    ),
+                                  ),
                                   const SizedBox(height: 2),
-                                  Text(p.url,
-                                      style: TextStyle(
-                                          fontSize: 11, color: AppTheme.muted)),
+                                  Text(
+                                    p.url,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.muted,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -162,7 +204,11 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 'Leave it automatic and the app picks the panel that accepts '
                 'your account.',
-                style: TextStyle(fontSize: 11.5, color: AppTheme.muted, height: 1.45),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: AppTheme.muted,
+                  height: 1.45,
+                ),
               ),
             ],
           ),
@@ -194,164 +240,184 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: FocusTraversalGroup(
                   policy: ReadingOrderTraversalPolicy(),
                   child: ListenableBuilder(
-                  listenable: appState,
-                  builder: (context, _) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _BrandHeader(),
-                      const SizedBox(height: 30),
+                    listenable: appState,
+                    builder: (context, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _BrandHeader(),
+                        const SizedBox(height: 30),
 
-                      if (appState.recentLogins.isNotEmpty) ...[
-                        for (var i = 0; i < appState.recentLogins.take(3).length; i++)
-                          FadeSlideIn(
-                            delay: Duration(milliseconds: 90 + 70 * i),
-                            child: _SavedLoginTile(
-                              login: appState.recentLogins[i],
-                              onResume: () => appState.resumeLogin(appState.recentLogins[i]),
-                              onForget: () => appState.forget(appState.recentLogins[i]),
+                        if (appState.recentLogins.isNotEmpty) ...[
+                          for (
+                            var i = 0;
+                            i < appState.recentLogins.take(3).length;
+                            i++
+                          )
+                            FadeSlideIn(
+                              delay: Duration(milliseconds: 90 + 70 * i),
+                              child: _SavedLoginTile(
+                                login: appState.recentLogins[i],
+                                onResume: () => appState.resumeLogin(
+                                  appState.recentLogins[i],
+                                ),
+                                onForget: () =>
+                                    appState.forget(appState.recentLogins[i]),
+                              ),
+                            ),
+                          const SizedBox(height: 14),
+                        ],
+
+                        FadeSlideIn(
+                          delay: const Duration(milliseconds: 220),
+                          child: _FieldShell(
+                            label: 'Username',
+                            icon: Icons.person_outline,
+                            focused: _userFocus.hasFocus,
+                            child: TextField(
+                              controller: _user,
+                              focusNode: _userFocus,
+                              // The screen opens with focus on the first field, so
+                              // a remote works from the very first key press.
+                              autofocus: true,
+                              autocorrect: false,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              onSubmitted: (_) => _passFocus.requestFocus(),
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        FadeSlideIn(
+                          delay: const Duration(milliseconds: 300),
+                          child: _FieldShell(
+                            label: 'Password',
+                            icon: Icons.lock_outline,
+                            focused: _passFocus.hasFocus,
+                            trailing: IconButton(
+                              tooltip: _obscure
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              // Right from the password's end reveals this on a
+                              // remote; Up/Down still follow the short sign-in path.
+                              focusNode: _revealFocus,
+                              splashRadius: 18,
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                size: 18,
+                                color: _passFocus.hasFocus
+                                    ? AppTheme.accent
+                                    : AppTheme.muted,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                            ),
+                            child: TextField(
+                              controller: _pass,
+                              focusNode: _passFocus,
+                              obscureText: _obscure,
+                              textInputAction: TextInputAction.done,
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              onSubmitted: (_) => _submit(),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+                        FadeSlideIn(
+                          delay: const Duration(milliseconds: 360),
+                          child: _RememberRow(
+                            value: appState.remember,
+                            onChanged: (v) =>
+                                appState.setCredentials(remember: v),
+                          ),
+                        ),
+
                         const SizedBox(height: 14),
-                      ],
+                        FadeSlideIn(
+                          delay: const Duration(milliseconds: 420),
+                          child: _SignInButton(busy: busy, onTap: _submit),
+                        ),
 
-                      FadeSlideIn(
-                        delay: const Duration(milliseconds: 220),
-                        child: _FieldShell(
-                          label: 'Username',
-                          icon: Icons.person_outline,
-                          focused: _userFocus.hasFocus,
-                          child: TextField(
-                            controller: _user,
-                            focusNode: _userFocus,
-                            // The screen opens with focus on the first field, so
-                            // a remote works from the very first key press.
-                            autofocus: true,
-                            autocorrect: false,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            onSubmitted: (_) => _passFocus.requestFocus(),
+                        const SizedBox(height: 10),
+                        FadeSlideIn(
+                          delay: const Duration(milliseconds: 480),
+                          child: _PanelButton(
+                            label: _server == null
+                                ? 'Panel · Automatic'
+                                : 'Panel · ${panelNameFor(_server!)}',
+                            automatic: _server == null,
+                            enabled: !busy,
+                            onTap: _pickPanel,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      FadeSlideIn(
-                        delay: const Duration(milliseconds: 300),
-                        child: _FieldShell(
-                          label: 'Password',
-                          icon: Icons.lock_outline,
-                          focused: _passFocus.hasFocus,
-                          trailing: IconButton(
-                            tooltip: _obscure ? 'Show password' : 'Hide password',
-                            // Pointer affordance only: on a remote/arrow path it
-                            // would be a pointless stop between the two fields.
-                            focusNode: _revealFocus,
-                            splashRadius: 18,
-                            icon: Icon(
-                              _obscure ? Icons.visibility_off : Icons.visibility,
-                              size: 18,
-                              color: _passFocus.hasFocus ? AppTheme.accent : AppTheme.muted,
-                            ),
-                            onPressed: () => setState(() => _obscure = !_obscure),
-                          ),
-                          child: TextField(
-                            controller: _pass,
-                            focusNode: _passFocus,
-                            obscureText: _obscure,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            onSubmitted: (_) => _submit(),
-                          ),
-                        ),
-                      ),
 
-                      const SizedBox(height: 6),
-                      FadeSlideIn(
-                        delay: const Duration(milliseconds: 360),
-                        child: _RememberRow(
-                          value: appState.remember,
-                          onChanged: (v) => appState.setCredentials(remember: v),
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-                      FadeSlideIn(
-                        delay: const Duration(milliseconds: 420),
-                        child: _SignInButton(busy: busy, onTap: _submit),
-                      ),
-
-                      const SizedBox(height: 10),
-                      FadeSlideIn(
-                        delay: const Duration(milliseconds: 480),
-                        child: _PanelButton(
-                          label: _server == null
-                              ? 'Panel · Automatic'
-                              : 'Panel · ${panelNameFor(_server!)}',
-                          automatic: _server == null,
-                          enabled: !busy,
-                          onTap: _pickPanel,
-                        ),
-                      ),
-
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
-                        alignment: Alignment.topCenter,
-                        child: appState.discoveryNote == null
-                            ? const SizedBox(width: double.infinity)
-                            : Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: FadeSlideIn(
-                                  offset: const Offset(0, 8),
-                                  child: Row(
-                                    children: [
-                                      const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(appState.discoveryNote!,
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.topCenter,
+                          child: appState.discoveryNote == null
+                              ? const SizedBox(width: double.infinity)
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: FadeSlideIn(
+                                    offset: const Offset(0, 8),
+                                    child: Row(
+                                      children: [
+                                        const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            appState.discoveryNote!,
                                             style: TextStyle(
-                                                fontSize: 12,
-                                                color: AppTheme.muted,
-                                                height: 1.4)),
-                                      ),
-                                    ],
+                                              fontSize: 12,
+                                              color: AppTheme.muted,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                      ),
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
-                        alignment: Alignment.topCenter,
-                        child: appState.error == null
-                            ? const SizedBox(width: double.infinity)
-                            : Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: ShakeOnChange(
-                                  key: _errorKey,
-                                  tick: appState.error,
-                                  child: _ErrorBox(
-                                    message: appState.error!,
-                                    hint: appState.errorHint,
+                        ),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.topCenter,
+                          child: appState.error == null
+                              ? const SizedBox(width: double.infinity)
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: ShakeOnChange(
+                                    key: _errorKey,
+                                    tick: appState.error,
+                                    child: _ErrorBox(
+                                      message: appState.error!,
+                                      hint: appState.errorHint,
+                                    ),
                                   ),
                                 ),
-                              ),
-                      ),
+                        ),
                       ],
                     ),
                   ),
@@ -402,7 +468,11 @@ class _BrandHeader extends StatelessWidget {
           child: Text(
             'Live TV, movies and series from your own panel',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12.5, color: AppTheme.muted, height: 1.4),
+            style: TextStyle(
+              fontSize: 12.5,
+              color: AppTheme.muted,
+              height: 1.4,
+            ),
           ),
         ),
       ],
@@ -424,8 +494,10 @@ class _AnimatedTitleState extends State<_AnimatedTitle>
     vsync: this,
     duration: const Duration(milliseconds: 900),
   )..forward();
-  late final Animation<double> _t =
-      CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
+  late final Animation<double> _t = CurvedAnimation(
+    parent: _c,
+    curve: Curves.easeOutCubic,
+  );
 
   @override
   void dispose() {
@@ -558,7 +630,9 @@ class _RememberRow extends StatelessWidget {
             width: 18,
             height: 18,
             decoration: BoxDecoration(
-              color: value ? AppTheme.accent.withValues(alpha: 0.16) : Colors.transparent,
+              color: value
+                  ? AppTheme.accent.withValues(alpha: 0.16)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: value ? AppTheme.accent : AppTheme.border,
@@ -574,15 +648,19 @@ class _RememberRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text('Remember me',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: AppTheme.text)),
-          ),
-          Text('fills in next time',
+            child: Text(
+              'Remember me',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+              style: TextStyle(fontSize: 13, color: AppTheme.text),
+            ),
+          ),
+          Text(
+            'fills in next time',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: AppTheme.muted),
+          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -607,7 +685,9 @@ class _SignInButton extends StatelessWidget {
         child: FilledButton(
           onPressed: busy ? null : onTap,
           style: FilledButton.styleFrom(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
@@ -627,8 +707,13 @@ class _SignInButton extends StatelessWidget {
                   )
                 : SpectralSweep(
                     key: const ValueKey('idle'),
-                    child: const Text('Sign In',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    child: const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
           ),
         ),
@@ -673,7 +758,10 @@ class _PanelButton extends StatelessWidget {
               transitionBuilder: (child, animation) => FadeTransition(
                 opacity: animation,
                 child: SizeTransition(
-                    sizeFactor: animation, axis: Axis.horizontal, child: child),
+                  sizeFactor: animation,
+                  axis: Axis.horizontal,
+                  child: child,
+                ),
               ),
               child: Text(
                 label,
@@ -736,9 +824,10 @@ class _SavedLoginTile extends StatelessWidget {
                         ? '?'
                         : login.username.characters.first.toUpperCase(),
                     style: TextStyle(
-                        color: AppTheme.onAccent,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15),
+                      color: AppTheme.onAccent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -746,18 +835,23 @@ class _SavedLoginTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(login.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 13.5,
-                              color: AppTheme.text,
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        login.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: AppTheme.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(login.server,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+                      Text(
+                        login.server,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: AppTheme.muted),
+                      ),
                     ],
                   ),
                 ),
@@ -798,15 +892,27 @@ class _ErrorBox extends StatelessWidget {
               Icon(Icons.error_outline, color: AppTheme.danger, size: 17),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(message,
-                    style: TextStyle(color: AppTheme.danger, fontSize: 12.5, height: 1.4)),
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: AppTheme.danger,
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
+                ),
               ),
             ],
           ),
           if (hint != null) ...[
             const SizedBox(height: 8),
-            Text(hint!,
-                style: TextStyle(color: AppTheme.muted, fontSize: 12, height: 1.5)),
+            Text(
+              hint!,
+              style: TextStyle(
+                color: AppTheme.muted,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
           ],
         ],
       ),

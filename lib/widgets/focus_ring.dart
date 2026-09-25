@@ -15,6 +15,7 @@ class FocusRing extends StatefulWidget {
     this.padding = EdgeInsets.zero,
     this.focusColor,
     this.onFocusChange,
+    this.focusNode,
   });
 
   final Widget child;
@@ -24,6 +25,7 @@ class FocusRing extends StatefulWidget {
   final EdgeInsets padding;
   final Color? focusColor;
   final ValueChanged<bool>? onFocusChange;
+  final FocusNode? focusNode;
 
   @override
   State<FocusRing> createState() => _FocusRingState();
@@ -36,6 +38,7 @@ class _FocusRingState extends State<FocusRing> {
   Widget build(BuildContext context) {
     final accent = widget.focusColor ?? AppTheme.accent;
     return FocusableActionDetector(
+      focusNode: widget.focusNode,
       autofocus: widget.autofocus,
       enabled: widget.onSelect != null,
       mouseCursor: SystemMouseCursors.click,
@@ -74,7 +77,13 @@ class _FocusRingState extends State<FocusRing> {
               width: _focused ? 2 : 1,
             ),
             boxShadow: _focused
-                ? [BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 12, spreadRadius: 1)]
+                ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ]
                 : null,
           ),
           child: widget.child,
@@ -107,12 +116,20 @@ class KeyHintBar extends StatelessWidget {
                   border: Border.all(color: AppTheme.border),
                   borderRadius: BorderRadius.circular(3),
                 ),
-                child: Text(key,
-                    style: TextStyle(
-                        fontSize: 10, color: AppTheme.text, fontFamily: 'monospace')),
+                child: Text(
+                  key,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppTheme.text,
+                    fontFamily: 'monospace',
+                  ),
+                ),
               ),
               const SizedBox(width: 5),
-              Text(meaning, style: TextStyle(fontSize: 11, color: AppTheme.muted)),
+              Text(
+                meaning,
+                style: TextStyle(fontSize: 11, color: AppTheme.muted),
+              ),
             ],
           ),
       ],

@@ -20,7 +20,7 @@ import 'package:flutter/services.dart';
 /// it ignores falls through to the D-pad handling.
 FocusNode dpadTextFocusNode({
   TextEditingController? controller,
-  KeyEventResult Function(KeyEvent event)? onKey,
+  KeyEventResult? Function(KeyEvent event)? onKey,
 }) {
   return FocusNode(
     onKeyEvent: (node, event) {

@@ -32,67 +32,75 @@ class PlayerTopChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = kind == 'live' && epg.isNotEmpty ? epg.first : null;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: IgnorePointer(
-        ignoring: !visible,
-        child: AnimatedOpacity(
-          opacity: visible ? 1 : 0,
-          duration: const Duration(milliseconds: 180),
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xCC000000), Color(0x00000000)],
+    return ExcludeFocus(
+      excluding: !visible,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xCC000000), Color(0x00000000)],
+                ),
               ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(6, 6, 8, 18),
-                child: Row(
-                  children: [
-                    PlayerRoundButton(
-                      icon: Icons.arrow_back,
-                      tooltip: 'Back',
-                      onTap: onBack,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 6, 8, 18),
+                  child: Row(
+                    children: [
+                      PlayerRoundButton(
+                        icon: Icons.arrow_back,
+                        tooltip: 'Back',
+                        onTap: onBack,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
                                 fontSize: 15.5,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            now == null
-                                ? _kindLabel(kind)
-                                : '${_clock(now.start)}–${_clock(now.end)}  ${now.title}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 11.5, color: Color(0xFFC9C2CC)),
-                          ),
-                        ],
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              now == null
+                                  ? _kindLabel(kind)
+                                  : '${_clock(now.start)}–${_clock(now.end)}  ${now.title}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFFC9C2CC),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (total > 1) PlayerPill(label: '${index + 1}/$total'),
-                    PlayerRoundButton(
-                      icon: fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
-                      tooltip: 'Fullscreen',
-                      onTap: onFullscreen,
-                    ),
-                  ],
+                      if (total > 1) PlayerPill(label: '${index + 1}/$total'),
+                      PlayerRoundButton(
+                        icon: fullscreen
+                            ? Icons.fullscreen_exit
+                            : Icons.fullscreen,
+                        tooltip: 'Fullscreen',
+                        onTap: onFullscreen,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -145,6 +153,10 @@ class PlayerBottomChrome extends StatelessWidget {
     required this.onFullscreen,
     required this.onScrub,
     required this.onPoke,
+    this.canPrevious = true,
+    this.canNext = true,
+    this.cinema = false,
+    this.playFocusNode,
   });
 
   final bool visible;
@@ -165,61 +177,75 @@ class PlayerBottomChrome extends StatelessWidget {
   final VoidCallback onFullscreen;
   final void Function(Duration) onScrub;
   final VoidCallback onPoke;
+  final bool canPrevious;
+  final bool canNext;
+  final bool cinema;
+  final FocusNode? playFocusNode;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: IgnorePointer(
-        ignoring: !visible,
-        child: AnimatedOpacity(
-          opacity: visible ? 1 : 0,
-          duration: const Duration(milliseconds: 180),
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [Color(0xE6000000), Color(0x00000000)],
+    return ExcludeFocus(
+      excluding: !visible,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Color(0xE6000000), Color(0x00000000)],
+                ),
               ),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                    wide ? 22 : 10, 26, wide ? 22 : 10, wide ? 14 : 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (seekable) _timeline(context) else _liveLine(),
-                    const SizedBox(height: 8),
-                    if (wide) _transport(context) else _transportNarrow(context),
-                    if (wide) ...[
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: KeyHintBar(
-                          hints: seekable
-                              ? const [
-                                  ('↑ ↓', 'channel'),
-                                  ('← →', 'seek 10s'),
-                                  ('Enter', 'play/pause'),
-                                  ('M', 'mute'),
-                                  ('F', 'fullscreen'),
-                                  ('Esc', 'back'),
-                                ]
-                              : const [
-                                  ('↑ ↓', 'channel'),
-                                  ('← →', 'volume'),
-                                  ('Enter', 'play/pause'),
-                                  ('M', 'mute'),
-                                  ('F', 'fullscreen'),
-                                  ('Esc', 'back'),
-                                ],
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    wide ? 22 : 10,
+                    26,
+                    wide ? 22 : 10,
+                    wide ? 14 : 6,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (seekable) _timeline(context) else _liveLine(),
+                      const SizedBox(height: 8),
+                      if (wide)
+                        _transport(context)
+                      else
+                        _transportNarrow(context),
+                      if (wide) ...[
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: KeyHintBar(
+                            hints: seekable
+                                ? const [
+                                    ('↑ ↓', 'channel'),
+                                    ('← →', 'seek 10s'),
+                                    ('Enter', 'play/pause'),
+                                    ('M', 'mute'),
+                                    ('F', 'fullscreen'),
+                                    ('Esc', 'back'),
+                                  ]
+                                : const [
+                                    ('↑ ↓', 'channel'),
+                                    ('← →', 'volume'),
+                                    ('Enter', 'play/pause'),
+                                    ('M', 'mute'),
+                                    ('F', 'fullscreen'),
+                                    ('Esc', 'back'),
+                                  ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -254,21 +280,28 @@ class PlayerBottomChrome extends StatelessWidget {
                       inactiveTrackColor: Colors.white24,
                       thumbColor: AppTheme.accent,
                       overlayColor: AppTheme.accent.withValues(alpha: 0.18),
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 7,
+                      ),
+                      overlayShape: const RoundSliderOverlayShape(
+                        overlayRadius: 18,
+                      ),
                     ),
                     child: Slider(
                       value: value,
                       max: maxMs,
                       onChangeStart: (_) => onPoke(),
-                      onChanged: (v) => onScrub(Duration(milliseconds: v.round())),
+                      onChanged: (v) =>
+                          onScrub(Duration(milliseconds: v.round())),
                     ),
                   )
                 else
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12),
                     child: LinearProgressIndicator(
-                        minHeight: 3, backgroundColor: Colors.white24),
+                      minHeight: 3,
+                      backgroundColor: Colors.white24,
+                    ),
                   ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -298,8 +331,10 @@ class PlayerBottomChrome extends StatelessWidget {
           Container(
             width: 7,
             height: 7,
-            decoration:
-                BoxDecoration(color: AppTheme.danger, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: AppTheme.danger,
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 7),
           Text('LIVE', style: _timeStyle.copyWith(letterSpacing: 1.1)),
@@ -321,20 +356,35 @@ class PlayerBottomChrome extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             PlayerRoundButton(
-                icon: Icons.skip_previous, tooltip: 'Previous (↑)', onTap: onPrev),
+              icon: Icons.skip_previous,
+              tooltip: 'Previous (↑)',
+              onTap: canPrevious ? onPrev : null,
+            ),
             if (seekable)
               PlayerRoundButton(
-                  icon: Icons.replay_10,
-                  tooltip: 'Back 10 s (←)',
-                  onTap: () => onSeek(-10)),
-            PlayerPlayButton(playing: playing, onTap: onPlayPause),
+                icon: Icons.replay_10,
+                tooltip: 'Back 10 s (←)',
+                onTap: () => onSeek(-10),
+              ),
+            PlayerPlayButton(
+              playing: playing,
+              onTap: onPlayPause,
+              focusNode: playFocusNode,
+              onFocusChange: (v) {
+                if (v) onPoke();
+              },
+            ),
             if (seekable)
               PlayerRoundButton(
-                  icon: Icons.forward_10,
-                  tooltip: 'Forward 10 s (→)',
-                  onTap: () => onSeek(10)),
+                icon: Icons.forward_10,
+                tooltip: 'Forward 10 s (→)',
+                onTap: () => onSeek(10),
+              ),
             PlayerRoundButton(
-                icon: Icons.skip_next, tooltip: 'Next (↓)', onTap: onNext),
+              icon: Icons.skip_next,
+              tooltip: 'Next (↓)',
+              onTap: canNext ? onNext : null,
+            ),
           ],
         ),
         Row(
@@ -346,8 +396,10 @@ class PlayerBottomChrome extends StatelessWidget {
             ),
             Expanded(child: _volumeSlider(context)),
             PlayerRoundButton(
-              icon: Icons.dark_mode_outlined,
-              tooltip: 'Cinema (C)',
+              icon: cinema
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+              tooltip: cinema ? 'Exit cinema (C)' : 'Cinema (C)',
               onTap: onCinema,
             ),
           ],
@@ -373,19 +425,36 @@ class PlayerBottomChrome extends StatelessWidget {
   Widget _transport(BuildContext context) {
     return Row(
       children: [
-        PlayerRoundButton(icon: Icons.skip_previous, tooltip: 'Previous (↑)', onTap: onPrev),
+        PlayerRoundButton(
+          icon: Icons.skip_previous,
+          tooltip: 'Previous (↑)',
+          onTap: canPrevious ? onPrev : null,
+        ),
         if (seekable)
           PlayerRoundButton(
-              icon: Icons.replay_10,
-              tooltip: 'Back 10 s (←)',
-              onTap: () => onSeek(-10)),
-        PlayerPlayButton(playing: playing, onTap: onPlayPause),
+            icon: Icons.replay_10,
+            tooltip: 'Back 10 s (←)',
+            onTap: () => onSeek(-10),
+          ),
+        PlayerPlayButton(
+          playing: playing,
+          onTap: onPlayPause,
+          focusNode: playFocusNode,
+          onFocusChange: (v) {
+            if (v) onPoke();
+          },
+        ),
         if (seekable)
           PlayerRoundButton(
-              icon: Icons.forward_10,
-              tooltip: 'Forward 10 s (→)',
-              onTap: () => onSeek(10)),
-        PlayerRoundButton(icon: Icons.skip_next, tooltip: 'Next (↓)', onTap: onNext),
+            icon: Icons.forward_10,
+            tooltip: 'Forward 10 s (→)',
+            onTap: () => onSeek(10),
+          ),
+        PlayerRoundButton(
+          icon: Icons.skip_next,
+          tooltip: 'Next (↓)',
+          onTap: canNext ? onNext : null,
+        ),
         const Spacer(),
         PlayerRoundButton(
           icon: muted || volume == 0 ? Icons.volume_off : Icons.volume_up,
@@ -395,8 +464,8 @@ class PlayerBottomChrome extends StatelessWidget {
         SizedBox(width: 132, child: _volumeSlider(context)),
         const SizedBox(width: 2),
         PlayerRoundButton(
-          icon: Icons.dark_mode_outlined,
-          tooltip: 'Cinema (C)',
+          icon: cinema ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+          tooltip: cinema ? 'Exit cinema (C)' : 'Cinema (C)',
           onTap: onCinema,
         ),
       ],
@@ -422,10 +491,15 @@ class PlayerBottomChrome extends StatelessWidget {
 
 /// 44 dp touch target so a thumb can actually hit it.
 class PlayerRoundButton extends StatelessWidget {
-  const PlayerRoundButton({super.key, required this.icon, required this.onTap, required this.tooltip});
+  const PlayerRoundButton({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final String tooltip;
 
   @override
@@ -438,7 +512,11 @@ class PlayerRoundButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Icon(icon, size: 22, color: Colors.white),
+          child: Icon(
+            icon,
+            size: 22,
+            color: onTap == null ? Colors.white38 : Colors.white,
+          ),
         ),
       ),
     );
@@ -447,10 +525,18 @@ class PlayerRoundButton extends StatelessWidget {
 
 /// The one control that should never be missed.
 class PlayerPlayButton extends StatelessWidget {
-  const PlayerPlayButton({super.key, required this.playing, required this.onTap});
+  const PlayerPlayButton({
+    super.key,
+    required this.playing,
+    required this.onTap,
+    this.focusNode,
+    this.onFocusChange,
+  });
 
   final bool playing;
   final VoidCallback onTap;
+  final FocusNode? focusNode;
+  final ValueChanged<bool>? onFocusChange;
 
   @override
   Widget build(BuildContext context) {
@@ -459,6 +545,8 @@ class PlayerPlayButton extends StatelessWidget {
       child: FocusRing(
         borderRadius: 40,
         onSelect: onTap,
+        focusNode: focusNode,
+        onFocusChange: onFocusChange,
         child: Container(
           width: 56,
           height: 56,
