@@ -284,7 +284,6 @@ class _HomeScreenState extends State<HomeScreen> {
           case LayoutStyle.dashboard:
             return _shell(
               _DashboardShell(
-                account: a,
                 narrow: narrow,
                 onOpen: _open,
                 searchController: _searchController,
@@ -295,28 +294,14 @@ class _HomeScreenState extends State<HomeScreen> {
           case LayoutStyle.cinema:
             return _shell(
               _CinemaShell(
-                account: a,
                 narrow: narrow,
                 onOpen: _open,
                 searchController: _searchController,
-                searchFocus: _searchFocus,
-                gridFocus: _gridFocus,
               ),
             );
           case LayoutStyle.masterDetail:
             return _shell(
               _MasterDetailShell(
-                account: a,
-                narrow: narrow,
-                onOpen: _open,
-                searchController: _searchController,
-                searchFocus: _searchFocus,
-                gridFocus: _gridFocus,
-              ),
-            );
-          case LayoutStyle.guide:
-            return _shell(
-              _GuideShell(
                 account: a,
                 narrow: narrow,
                 onOpen: _open,
@@ -2241,7 +2226,6 @@ class _CategoryRails extends StatelessWidget {
 /// Layout: Dashboard — large tiles you step into, aimed at a TV remote.
 class _DashboardShell extends StatefulWidget {
   const _DashboardShell({
-    required this.account,
     required this.narrow,
     required this.onOpen,
     required this.searchController,
@@ -2249,7 +2233,6 @@ class _DashboardShell extends StatefulWidget {
     required this.gridFocus,
   });
 
-  final AccountInfo? account;
   final bool narrow;
   final void Function(BuildContext, StreamItem) onOpen;
   final TextEditingController searchController;
@@ -2366,7 +2349,6 @@ class _DashboardShellState extends State<_DashboardShell> {
                     child: !_entered
                         ? _DashboardTiles(
                             narrow: widget.narrow,
-                            account: widget.account,
                             focusNodes: _tileFocus,
                             onEnter: (tab) {
                               appState.setTab(tab);
@@ -2403,13 +2385,11 @@ class _DashboardShellState extends State<_DashboardShell> {
 class _DashboardTiles extends StatelessWidget {
   const _DashboardTiles({
     required this.narrow,
-    required this.account,
     required this.focusNodes,
     required this.onEnter,
   });
 
   final bool narrow;
-  final AccountInfo? account;
   final Map<ContentTab, FocusNode> focusNodes;
   final void Function(ContentTab) onEnter;
 
@@ -2436,21 +2416,15 @@ class _DashboardTiles extends StatelessWidget {
       ),
     ];
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
       children: [
-        if (appState.guest) ...[
-          const Padding(
-            padding: EdgeInsets.only(bottom: 10),
-            child: Align(alignment: Alignment.centerLeft, child: _GuestChip()),
-          ),
-        ],
         GridView.count(
           crossAxisCount: narrow ? 1 : 3,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: narrow ? 2.2 : 1.12,
+          childAspectRatio: narrow ? 2.2 : 1.65,
           children: [
             for (final (idx, (label, icon, tab, blurb)) in tiles.indexed)
               _SectionTile(
@@ -2467,8 +2441,6 @@ class _DashboardTiles extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 14),
-        _AccountCard(account: account),
       ],
     );
   }
@@ -2735,93 +2707,30 @@ class _Art extends StatelessWidget {
   );
 }
 
-class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.account});
-
-  final AccountInfo? account;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          AppMark(size: 34),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  account?.username ?? appState.username,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  account == null
-                      ? appState.server
-                      : (account!.expired
-                            ? 'EXPIRED ${account!.expiryLabel}'
-                            : 'expires ${account!.expiryLabel} · '
-                                  '${account!.activeConnections}/${account!.maxConnections} connections'),
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: account?.expired == true
-                        ? AppTheme.danger
-                        : AppTheme.muted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () => showSettingsSheet(context),
-            child: const Text('Manage'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Layout: Cinema — a full-bleed backdrop with a shelf of what is playing.
+/// Layout: Cinema — fixed artwork behind a scrollable hero and category shelves.
 class _CinemaShell extends StatelessWidget {
   const _CinemaShell({
-    required this.account,
     required this.narrow,
     required this.onOpen,
     required this.searchController,
-    required this.searchFocus,
-    required this.gridFocus,
   });
 
-  final AccountInfo? account;
   final bool narrow;
   final void Function(BuildContext, StreamItem) onOpen;
   final TextEditingController searchController;
-  final FocusNode searchFocus;
-  final FocusNode gridFocus;
 
   @override
   Widget build(BuildContext context) {
-    final items = appState.items;
+    final items = appState.visibleItems;
     final hero = items.isEmpty
         ? null
         : items.firstWhere((i) => i.icon != null, orElse: () => items.first);
+    final width = MediaQuery.sizeOf(context).width;
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Container(
+          DecoratedBox(
             decoration: BoxDecoration(gradient: AppTheme.headerGradient()),
           ),
           if (hero?.icon != null)
@@ -2830,15 +2739,14 @@ class _CinemaShell extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
-          // Darken top and bottom: the title block sits on the lower third.
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
+                  AppTheme.background.withValues(alpha: 0.82),
                   AppTheme.background.withValues(alpha: 0.72),
-                  AppTheme.background.withValues(alpha: 0.42),
                   AppTheme.background.withValues(alpha: 0.96),
                 ],
               ),
@@ -2848,14 +2756,14 @@ class _CinemaShell extends StatelessWidget {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 12, 4),
                   child: Row(
                     children: [
-                      if (MediaQuery.sizeOf(context).width >= 380) ...[
+                      if (width >= 380) ...[
                         AppMark(size: 28),
                         const SizedBox(width: 10),
                       ],
-                      if (!narrow)
+                      if (width >= 1040)
                         Text(
                           'Spectre',
                           style: TextStyle(
@@ -2864,8 +2772,8 @@ class _CinemaShell extends StatelessWidget {
                             color: AppTheme.text,
                           ),
                         ),
-                      const SizedBox(width: 16),
-                      _NavPills(labels: !narrow),
+                      SizedBox(width: narrow ? 6 : 16),
+                      _NavPills(labels: width >= 950),
                       const Spacer(),
                       IconButton(
                         tooltip: 'Search',
@@ -2881,83 +2789,75 @@ class _CinemaShell extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Spacer(),
-                if (hero != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          appState.tab == ContentTab.live
-                              ? 'ON NOW'
-                              : 'FEATURED',
-                          style: TextStyle(
-                            fontSize: 11,
-                            letterSpacing: 1.8,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.accent,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          hero.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.text,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            FilledButton.icon(
-                              onPressed: () => onOpen(context, hero),
-                              icon: const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 20,
+                Expanded(
+                  child: _CategoryRails(
+                    onOpen: onOpen,
+                    header: hero != null && appState.error == null
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(height: narrow ? 96 : 156),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  22,
+                                  0,
+                                  22,
+                                  18,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      appState.tab == ContentTab.live
+                                          ? 'ON NOW'
+                                          : 'FEATURED',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        letterSpacing: 1.8,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.accent,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      hero.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: narrow ? 21 : 26,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.text,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Wrap(
+                                      spacing: 10,
+                                      runSpacing: 8,
+                                      children: [
+                                        FilledButton.icon(
+                                          onPressed: () =>
+                                              onOpen(context, hero),
+                                          icon: const Icon(
+                                            Icons.play_arrow_rounded,
+                                            size: 20,
+                                          ),
+                                          label: const Text('Play'),
+                                        ),
+                                        OutlinedButton(
+                                          onPressed: () =>
+                                              appState.selectCategory(null),
+                                          child: const Text('Browse all'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                              label: const Text('Play'),
-                            ),
-                            const SizedBox(width: 10),
-                            OutlinedButton(
-                              onPressed: () => appState.selectCategory(null),
-                              child: const Text('Browse all'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                            ],
+                          )
+                        : null,
                   ),
-                if (appState.error == null)
-                  SizedBox(
-                    height: 200,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      itemCount: items.length,
-                      itemBuilder: (context, i) => Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: SizedBox(
-                          width: 132,
-                          child: _StreamCard(
-                            item: items[i],
-                            onSelect: () => onOpen(context, items[i]),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (appState.error != null)
-                  Expanded(
-                    child: _ErrorPanel(
-                      message: appState.error!,
-                      hint: appState.errorHint,
-                    ),
-                  ),
-                const SizedBox(height: 12),
+                ),
                 if (appState.busy) const LinearProgressIndicator(minHeight: 2),
               ],
             ),
@@ -3188,255 +3088,6 @@ class _MasterRow extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Layout: Guide — dense channel rows grouped by category, with now/next EPG
-/// fetched only for the row you actually focus.
-class _GuideShell extends StatefulWidget {
-  const _GuideShell({
-    required this.account,
-    required this.narrow,
-    required this.onOpen,
-    required this.searchController,
-    required this.searchFocus,
-    required this.gridFocus,
-  });
-
-  final AccountInfo? account;
-  final bool narrow;
-  final void Function(BuildContext, StreamItem) onOpen;
-  final TextEditingController searchController;
-  final FocusNode searchFocus;
-  final FocusNode gridFocus;
-
-  @override
-  State<_GuideShell> createState() => _GuideShellState();
-}
-
-class _GuideShellState extends State<_GuideShell> {
-  Future<void> _loadEpg(StreamItem item) => appState.loadEpgFor(item);
-
-  @override
-  Widget build(BuildContext context) {
-    // Keep only lightweight row descriptors; build channel widgets on demand.
-    final rows = <(String?, int, StreamItem?)>[];
-    final cats = appState.categories;
-    final all = appState.visibleItems;
-    if (cats.isEmpty) {
-      rows.addAll(all.map((i) => (null, 0, i)));
-    } else {
-      final knownIds = cats.map((c) => c.id).toSet();
-      for (final c in cats) {
-        final inCat = all.where((i) => i.categoryId == c.id).toList();
-        if (inCat.isEmpty) continue;
-        rows.add((c.name, inCat.length, null));
-        rows.addAll(inCat.map((i) => (null, 0, i)));
-      }
-      final other = all.where((i) => !knownIds.contains(i.categoryId)).toList();
-      if (other.isNotEmpty) {
-        rows.add(('Other', other.length, null));
-        rows.addAll(other.map((i) => (null, 0, i)));
-      }
-    }
-    final firstItemIndex = rows.indexWhere((row) => row.$3 != null);
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ContentToolbar(
-              controller: widget.searchController,
-              focusNode: widget.searchFocus,
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              alignment: Alignment.centerLeft,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.view_list_outlined,
-                    size: 14,
-                    color: AppTheme.accent,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Guide · ${all.length} channels · now/next on focus',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: AppTheme.muted),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: rows.isEmpty
-                  ? Center(
-                      child: appState.busy
-                          ? const CircularProgressIndicator()
-                          : Text(
-                              appState.error ?? 'No channels match this view',
-                            ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      itemCount: rows.length,
-                      itemBuilder: (context, i) {
-                        final row = rows[i];
-                        return row.$3 == null
-                            ? _GuideHeader(label: row.$1!, count: row.$2)
-                            : _row(row.$3!, autofocus: i == firstItemIndex);
-                      },
-                    ),
-            ),
-            if (appState.busy) const LinearProgressIndicator(minHeight: 2),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _row(StreamItem item, {bool autofocus = false}) => _GuideRow(
-    item: item,
-    autofocus: autofocus,
-    epg: appState.epgCache[item.id],
-    loading: appState.epgPending.contains(item.id),
-    onFocus: () => _loadEpg(item),
-    onSelect: () => widget.onOpen(context, item),
-  );
-}
-
-class _GuideHeader extends StatelessWidget {
-  const _GuideHeader({required this.label, required this.count});
-
-  final String label;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 13,
-            decoration: BoxDecoration(
-              color: AppTheme.accent,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.text,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-          Text('$count', style: TextStyle(fontSize: 11, color: AppTheme.muted)),
-        ],
-      ),
-    );
-  }
-}
-
-class _GuideRow extends StatelessWidget {
-  const _GuideRow({
-    required this.item,
-    required this.onSelect,
-    required this.onFocus,
-    required this.loading,
-    this.epg,
-    this.autofocus = false,
-  });
-
-  final StreamItem item;
-  final VoidCallback onSelect;
-  final VoidCallback onFocus;
-  final bool loading;
-  final List<EpgEntry>? epg;
-  final bool autofocus;
-
-  @override
-  Widget build(BuildContext context) {
-    final now = epg != null && epg!.isNotEmpty ? epg!.first : null;
-    return FocusRing(
-      borderRadius: 10,
-      autofocus: autofocus,
-      onSelect: onSelect,
-      onFocusChange: (f) {
-        if (f) onFocus();
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppTheme.border),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 46,
-              height: 30,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: Container(
-                  color: AppTheme.surface,
-                  child: item.icon == null
-                      ? Icon(Icons.tv, size: 14, color: AppTheme.border)
-                      : Image.network(
-                          item.icon!,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) =>
-                              Icon(Icons.tv, size: 14, color: AppTheme.border),
-                        ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              flex: 3,
-              child: Text(
-                item.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: AppTheme.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              flex: 4,
-              child: Text(
-                now == null
-                    ? (loading ? 'loading now/next…' : '—')
-                    : '${now.title}  ·  ${now.timeLabel}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: now == null ? AppTheme.muted : AppTheme.accent,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

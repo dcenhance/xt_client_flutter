@@ -80,18 +80,19 @@ the panel ships no logo) on soft tiles for Live TV — plus a live count.
 
 ### Layouts
 
-Seven whole-app layouts ship in the app; **Account → Layout** switches between them live, on any
+Six whole-app layouts ship in the app; **Account → Layout** switches between them live, on any
 platform (nothing is tied to the OS), and the choice is remembered:
 
 | Layout | What it is |
 |---|---|
 | **Classic** | tab strip + category rail on desktop, bottom navigation on phones |
 | **Sidebar** | permanent vertical navigation (icon-only rail on narrow windows) |
-| **Showcase** | big hero banner with Play, then one poster rail per category |
-| **Dashboard** | large section tiles you step into — the one to use with a TV remote |
-| **Cinema** | full-bleed backdrop, title block with Play, shelf of what is playing |
+| **Showcase** | hero banner scrolls with one poster rail per category |
+| **Dashboard** | compact, artwork-led section tiles with D-pad focus and no account card |
+| **Cinema** | fixed backdrop behind a vertically scrollable hero and category shelves |
 | **Master-detail** | category column on the left, content grid on the right |
-| **Guide** | dense channel rows grouped by category, with now/next fetched for the row you focus |
+
+An old saved **Guide** selection migrates to **Classic** on launch.
 
 Each tile in the picker draws a miniature wireframe of the shell it applies.
 
@@ -271,11 +272,11 @@ flutter build ios --release --no-codesign     # or open ios/Runner.xcworkspace i
 
 ## Keyboard, TV remote and gamepad
 
-Verified with real D-pad key events on an Android device, per layout: focus starts inside the content
+Flutter widget tests simulate D-pad key events; a physical TV test is still pending. Focus starts inside the content
 (the first card/row/tile takes it), arrows move it between items, the remote's **OK** (which arrives
 as `select`) activates the focused item, and **Back**/**Esc** leaves what it opened. The focus ring is
 driven by *focus*, not by Flutter's "highlight mode", so a remote that reports no highlight mode still
-shows where you are — and the Guide's now/next is fetched for the row that actually holds focus.
+shows where you are.
 
 `test/dpad_navigation_test.dart` drives every layout with key events: focus moves, OK opens the
 focused item, Esc closes it, and the remote key map (OK, A, Back, B, Esc) is asserted.

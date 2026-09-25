@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xtream_player/main.dart';
 import 'package:xtream_player/screens/home_screen.dart';
 import 'package:xtream_player/store.dart';
+import 'package:xtream_player/widgets/layout_picker.dart';
 
 /// Every shell has to render on every platform pick — the setting is not tied
 /// to the OS, so all four must build from the same state.
@@ -65,5 +67,28 @@ void main() {
     // Defaults are the golden palette and the classic shell.
     expect(AppState().themeId, 'oled');
     expect(AppState().layout, LayoutStyle.classic);
+  });
+
+  testWidgets('Guide is removed; a saved Guide selection opens Classic', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'layout': 'guide'});
+    addTearDown(() => SharedPreferences.setMockInitialValues({}));
+    final state = AppState();
+    await state.init();
+    expect(
+      LayoutStyle.values.map((style) => style.name),
+      isNot(contains('guide')),
+    );
+    expect(state.layout, LayoutStyle.classic);
+    expect(
+      (await SharedPreferences.getInstance()).getString('layout'),
+      'classic',
+    );
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: LayoutPicker())),
+    );
+    expect(find.text('Guide'), findsNothing);
+    expect(find.text('Cinema'), findsOneWidget);
   });
 }

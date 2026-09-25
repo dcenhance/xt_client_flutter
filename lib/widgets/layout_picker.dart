@@ -11,13 +11,30 @@ class LayoutPicker extends StatelessWidget {
   const LayoutPicker({super.key});
 
   static const _labels = <LayoutStyle, (String, String)>{
-    LayoutStyle.classic: ('Classic', 'Tab strip and category rail on desktop, bottom nav on phones'),
-    LayoutStyle.sidebar: ('Sidebar', 'Permanent vertical navigation, phone and desktop alike'),
-    LayoutStyle.showcase: ('Showcase', 'Big hero banner over per-category poster rails'),
-    LayoutStyle.dashboard: ('Dashboard', 'Large section tiles you enter — made for a TV remote'),
-    LayoutStyle.cinema: ('Cinema', 'Full-bleed backdrop with a shelf of what is playing'),
-    LayoutStyle.masterDetail: ('Master-detail', 'Category column on the left, content on the right'),
-    LayoutStyle.guide: ('Guide', 'Dense channel rows grouped by category, with now/next'),
+    LayoutStyle.classic: (
+      'Classic',
+      'Tab strip and category rail on desktop, bottom nav on phones',
+    ),
+    LayoutStyle.sidebar: (
+      'Sidebar',
+      'Permanent vertical navigation, phone and desktop alike',
+    ),
+    LayoutStyle.showcase: (
+      'Showcase',
+      'Big hero banner over per-category poster rails',
+    ),
+    LayoutStyle.dashboard: (
+      'Dashboard',
+      'Compact section tiles with artwork and a remote-friendly focus path',
+    ),
+    LayoutStyle.cinema: (
+      'Cinema',
+      'Fixed artwork behind a scrolling hero and category shelves',
+    ),
+    LayoutStyle.masterDetail: (
+      'Master-detail',
+      'Category column on the left, content on the right',
+    ),
   };
 
   @override
@@ -93,21 +110,31 @@ class _LayoutTile extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.text)),
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.text,
+                      ),
+                    ),
                   ),
-                  if (selected) Icon(Icons.check_circle, size: 15, color: AppTheme.accent),
+                  if (selected)
+                    Icon(Icons.check_circle, size: 15, color: AppTheme.accent),
                 ],
               ),
               const SizedBox(height: 2),
-              Text(blurb,
-                  maxLines: 3,
-                  style: TextStyle(fontSize: 10.5, color: AppTheme.muted, height: 1.35)),
+              Text(
+                blurb,
+                maxLines: 3,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: AppTheme.muted,
+                  height: 1.35,
+                ),
+              ),
             ],
           ),
         ),
@@ -123,27 +150,34 @@ class _Wireframe extends StatelessWidget {
   final LayoutStyle style;
 
   Widget bar({double? w, double h = 6, bool accent = false}) => Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: accent ? AppTheme.accent : AppTheme.border,
-          borderRadius: BorderRadius.circular(2),
-        ),
-      );
+    width: w,
+    height: h,
+    decoration: BoxDecoration(
+      color: accent ? AppTheme.accent : AppTheme.border,
+      borderRadius: BorderRadius.circular(2),
+    ),
+  );
 
   Widget tile({bool accent = false}) => Expanded(
-        child: Container(
-          decoration: BoxDecoration(
-            color: accent ? AppTheme.accent.withValues(alpha: 0.35) : AppTheme.card,
-            border: Border.all(color: AppTheme.border),
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-      );
+    child: Container(
+      decoration: BoxDecoration(
+        color: accent ? AppTheme.accent.withValues(alpha: 0.35) : AppTheme.card,
+        border: Border.all(color: AppTheme.border),
+        borderRadius: BorderRadius.circular(3),
+      ),
+    ),
+  );
 
   Widget row(List<Widget> kids) => Expanded(
-        child: Row(children: [for (int i = 0; i < kids.length; i++) ...[if (i > 0) const SizedBox(width: 4), kids[i]]]),
-      );
+    child: Row(
+      children: [
+        for (int i = 0; i < kids.length; i++) ...[
+          if (i > 0) const SizedBox(width: 4),
+          kids[i],
+        ],
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +185,15 @@ class _Wireframe extends StatelessWidget {
       case LayoutStyle.classic:
         return Column(
           children: [
-            Row(children: [bar(w: 40, accent: true), const Spacer(), bar(w: 26), const SizedBox(width: 4), bar(w: 12)]),
+            Row(
+              children: [
+                bar(w: 40, accent: true),
+                const Spacer(),
+                bar(w: 26),
+                const SizedBox(width: 4),
+                bar(w: 12),
+              ],
+            ),
             const SizedBox(height: 5),
             row([bar(w: 12), bar(w: 26), bar(w: 26)]),
             const SizedBox(height: 4),
@@ -201,7 +243,10 @@ class _Wireframe extends StatelessWidget {
               height: 30,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppTheme.accent.withValues(alpha: 0.45), AppTheme.card],
+                  colors: [
+                    AppTheme.accent.withValues(alpha: 0.45),
+                    AppTheme.card,
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(3),
               ),
@@ -221,13 +266,22 @@ class _Wireframe extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [AppTheme.card, AppTheme.accent.withValues(alpha: 0.25)],
+                  colors: [
+                    AppTheme.card,
+                    AppTheme.accent.withValues(alpha: 0.25),
+                  ],
                 ),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
             const SizedBox(height: 4),
-            Row(children: [bar(w: 26, accent: true), const SizedBox(width: 4), bar(w: 18)]),
+            Row(
+              children: [
+                bar(w: 26, accent: true),
+                const SizedBox(width: 4),
+                bar(w: 18),
+              ],
+            ),
             const SizedBox(height: 4),
             row([tile(), tile(), tile(), tile()]),
           ],
@@ -272,39 +326,13 @@ class _Wireframe extends StatelessWidget {
             ),
           ],
         );
-      case LayoutStyle.guide:
-        return Column(
-          children: [
-            bar(w: 30, accent: true),
-            const SizedBox(height: 4),
-            for (int i = 0; i < 5; i++) ...[
-              Container(
-                height: 9,
-                decoration: BoxDecoration(
-                  color: AppTheme.card,
-                  borderRadius: BorderRadius.circular(2),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 3),
-                    bar(w: 8, h: 4),
-                    const SizedBox(width: 3),
-                    bar(w: 22, h: 4),
-                    const Spacer(),
-                    bar(w: 14, h: 4, accent: true),
-                    const SizedBox(width: 3),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 2),
-            ],
-          ],
-        );
+
       case LayoutStyle.dashboard:
         return Column(
           children: [
-            Row(children: [bar(w: 34, accent: true), const Spacer(), bar(w: 10)]),
+            Row(
+              children: [bar(w: 34, accent: true), const Spacer(), bar(w: 10)],
+            ),
             const SizedBox(height: 5),
             row([tile(accent: true), tile(accent: true)]),
             const SizedBox(height: 4),

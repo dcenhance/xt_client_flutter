@@ -12,6 +12,8 @@ void main() {
   tearDown(() {
     appState.categories = const [];
     appState.items = const [];
+    appState.username = '';
+    appState.server = '';
     appState.setSearch('');
   });
 
@@ -87,38 +89,86 @@ void main() {
     });
   }
 
-  testWidgets('Guide reaches channel 121 and uncategorized channels', (
+  testWidgets('Dashboard leads with content, not account details', (
     tester,
   ) async {
-    appState.layout = LayoutStyle.guide;
-    appState.categories = [Category(id: 'long', name: 'Long list')];
-    appState.items = [
-      for (var i = 1; i <= 121; i++)
-        StreamItem(
-          id: '$i',
-          name: 'Channel $i',
-          kind: 'live',
-          categoryId: 'long',
-        ),
-      StreamItem(id: 'orphan', name: 'Orphan channel', kind: 'live'),
-    ];
+    appState.layout = LayoutStyle.dashboard;
+    appState.username = 'private-dashboard-user';
+    appState.server = 'https://private-dashboard-server.example';
     await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
-    expect(find.textContaining('122 channels'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Channel 121'),
-      450,
-      scrollable: find.byType(Scrollable).last,
-      maxScrolls: 70,
-    );
-    expect(find.text('Channel 121'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Orphan channel'),
-      300,
-      scrollable: find.byType(Scrollable).last,
-      maxScrolls: 12,
-    );
-    expect(find.text('Orphan channel'), findsOneWidget);
+    expect(find.text('Live TV'), findsWidgets);
+    expect(find.text('Movies'), findsWidgets);
+    expect(find.text('Series'), findsWidgets);
+    expect(find.text('private-dashboard-user'), findsNothing);
+    expect(find.text('https://private-dashboard-server.example'), findsNothing);
+    expect(find.text('Manage'), findsNothing);
+    expect(find.byTooltip('Account & settings'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Dashboard tiles stay compact on a TV-sized screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    appState.layout = LayoutStyle.dashboard;
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    final movieTile = find.ancestor(
+      of: find.text('Movies').first,
+      matching: find.byType(FocusRing),
+    );
+    expect(movieTile, findsOneWidget);
+    expect(tester.getSize(movieTile).height, lessThan(280));
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [320.0, 1280.0]) {
+    testWidgets(
+      'Cinema scrolls from hero into every shelf at ${width.toInt()} dp',
+      (tester) async {
+        tester.view.physicalSize = Size(width, width >= 900 ? 720 : 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        appState.layout = LayoutStyle.cinema;
+        appState.tab = ContentTab.movies;
+        appState.categories = [
+          for (var i = 0; i < 5; i++) Category(id: '$i', name: 'Shelf $i'),
+        ];
+        appState.items = [
+          for (var i = 0; i < 5; i++)
+            StreamItem(
+              id: '$i',
+              name: 'Film $i',
+              kind: 'movie',
+              categoryId: '$i',
+            ),
+        ];
+        await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+        final navTop = tester
+            .getTopLeft(find.byTooltip('Account & settings'))
+            .dy;
+        final vertical = find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        );
+        expect(vertical, findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('Shelf 4'),
+          400,
+          scrollable: vertical,
+          maxScrolls: 12,
+        );
+        expect(find.text('Shelf 4'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byTooltip('Account & settings')).dy,
+          navTop,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   test('palette IDs are unique', () {
     expect(kPalettes.map((p) => p.id).toSet().length, kPalettes.length);

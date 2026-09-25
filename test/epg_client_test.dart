@@ -22,23 +22,31 @@ void main() {
       request.response.headers.contentType = ContentType.json;
       switch (action) {
         case 'get_live_categories':
-          request.response.write(jsonEncode([
-            {'category_id': '1', 'category_name': 'News'},
-          ]));
+          request.response.write(
+            jsonEncode([
+              {'category_id': '1', 'category_name': 'News'},
+            ]),
+          );
         case 'get_short_epg':
           epgCalls.add(request.uri.queryParameters['stream_id'] ?? '');
-          request.response.write(jsonEncode({
-            'epg_listings': [
-              {
-                'title': base64.encode(utf8.encode('Synthetic News Hour')),
-                'description': base64.encode(utf8.encode('for tests')),
-                'start_timestamp': '1784563200',
-                'stop_timestamp': '1784566800',
-              },
-            ],
-          }));
+          request.response.write(
+            jsonEncode({
+              'epg_listings': [
+                {
+                  'title': base64.encode(utf8.encode('Synthetic News Hour')),
+                  'description': base64.encode(utf8.encode('for tests')),
+                  'start_timestamp': '1784563200',
+                  'stop_timestamp': '1784566800',
+                },
+              ],
+            }),
+          );
         default:
-          request.response.write(jsonEncode({'user_info': {'auth': 1, 'username': 'demo'}}));
+          request.response.write(
+            jsonEncode({
+              'user_info': {'auth': 1, 'username': 'demo'},
+            }),
+          );
       }
       await request.response.close();
     });
@@ -71,8 +79,7 @@ void main() {
   });
 }
 
-// Appended: the Guide asks the store for now/next, so the store carries the
-// cache and the live-only rule.
+// The player still uses the EPG cache for live channel now/next data.
 void _storeEpg() {
   test('loadEpgFor caches now/next for a live channel and skips VOD', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -82,18 +89,24 @@ void _storeEpg() {
       request.response.headers.contentType = ContentType.json;
       if (action == 'get_short_epg') {
         asked.add(request.uri.queryParameters['stream_id'] ?? '');
-        request.response.write(jsonEncode({
-          'epg_listings': [
-            {
-              'title': base64.encode(utf8.encode('Synthetic News Hour')),
-              'description': base64.encode(utf8.encode('for tests')),
-              'start_timestamp': '1784563200',
-              'stop_timestamp': '1784566800',
-            },
-          ],
-        }));
+        request.response.write(
+          jsonEncode({
+            'epg_listings': [
+              {
+                'title': base64.encode(utf8.encode('Synthetic News Hour')),
+                'description': base64.encode(utf8.encode('for tests')),
+                'start_timestamp': '1784563200',
+                'stop_timestamp': '1784566800',
+              },
+            ],
+          }),
+        );
       } else {
-        request.response.write(jsonEncode({'user_info': {'auth': 1, 'username': 'demo'}}));
+        request.response.write(
+          jsonEncode({
+            'user_info': {'auth': 1, 'username': 'demo'},
+          }),
+        );
       }
       await request.response.close();
     });

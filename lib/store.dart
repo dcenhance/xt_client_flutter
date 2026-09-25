@@ -17,7 +17,7 @@ enum Density { comfortable, compact }
 
 /// Whole-app layout, pickable in Settings. Not tied to the platform: a desktop
 /// can run the Dashboard shell and a phone the Sidebar one.
-enum LayoutStyle { classic, sidebar, showcase, dashboard, cinema, masterDetail, guide }
+enum LayoutStyle { classic, sidebar, showcase, dashboard, cinema, masterDetail }
 
 /// A login the app keeps between sessions, so the user does not have to retype
 /// it and a panel can be re-picked later without asking for credentials again.
@@ -39,21 +39,22 @@ class SavedLogin {
   String get key => '$username@$server';
 
   Map<String, dynamic> toJson() => {
-        'server': server,
-        'username': username,
-        'password': password,
-        'label': label,
-        'lastUsed': lastUsed.toIso8601String(),
-      };
+    'server': server,
+    'username': username,
+    'password': password,
+    'label': label,
+    'lastUsed': lastUsed.toIso8601String(),
+  };
 
   static SavedLogin fromJson(Map<String, dynamic> j) => SavedLogin(
-        server: (j['server'] ?? '') as String,
-        username: (j['username'] ?? '') as String,
-        password: (j['password'] ?? '') as String,
-        label: (j['label'] ?? '') as String,
-        lastUsed: DateTime.tryParse((j['lastUsed'] ?? '') as String) ??
-            DateTime.fromMillisecondsSinceEpoch(0),
-      );
+    server: (j['server'] ?? '') as String,
+    username: (j['username'] ?? '') as String,
+    password: (j['password'] ?? '') as String,
+    label: (j['label'] ?? '') as String,
+    lastUsed:
+        DateTime.tryParse((j['lastUsed'] ?? '') as String) ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+  );
 
   /// "juppborken · EUROPE 1"
   String get displayName {
@@ -105,7 +106,7 @@ class AppState extends ChangeNotifier {
 
   List<SavedLogin> logins = [];
 
-  /// now/next, fetched on demand (the Guide layout and the player ask for it).
+  /// Now/next cached on demand for the player.
   final Map<String, List<EpgEntry>> epgCache = {};
   final Set<String> epgPending = {};
 
@@ -174,10 +175,10 @@ class AppState extends ChangeNotifier {
   bool get loggedIn => account != null || guest;
 
   String get tabLabel => switch (tab) {
-        ContentTab.live => 'Live TV',
-        ContentTab.movies => 'Movies',
-        ContentTab.series => 'Series',
-      };
+    ContentTab.live => 'Live TV',
+    ContentTab.movies => 'Movies',
+    ContentTab.series => 'Series',
+  };
 
   SavedLogin? get activeLogin {
     for (final l in logins) {
@@ -206,10 +207,16 @@ class AppState extends ChangeNotifier {
         ? Density.compact
         : Density.comfortable;
     themeId = _prefs!.getString(_kTheme) ?? kGoldenOled.id;
+    final savedLayout = _prefs!.getString(_kLayout) ?? 'classic';
     layout = LayoutStyle.values.firstWhere(
-      (l) => l.name == (_prefs!.getString(_kLayout) ?? 'classic'),
+      (l) => l.name == savedLayout,
       orElse: () => LayoutStyle.classic,
     );
+    // Guide was retired; replace the saved choice instead of restoring it on
+    // every launch or leaving a layout that the picker can no longer show.
+    if (savedLayout == 'guide') {
+      await _prefs!.setString(_kLayout, layout.name);
+    }
     AppTheme.use(themeId);
     workingServers = _prefs!.getStringList(_kWorking) ?? const [];
     _loadLogins();
@@ -217,7 +224,12 @@ class AppState extends ChangeNotifier {
     // Migrate the single saved login of older builds into the new list.
     if (logins.isEmpty && username.isNotEmpty && password.isNotEmpty) {
       logins = [
-        SavedLogin(server: server, username: username, password: password, label: ''),
+        SavedLogin(
+          server: server,
+          username: username,
+          password: password,
+          label: '',
+        ),
       ];
       await _persistLogins();
     }
@@ -229,8 +241,13 @@ class AppState extends ChangeNotifier {
     final auto = recentLogins.isNotEmpty
         ? recentLogins.first
         : (server.isNotEmpty && username.isNotEmpty && password.isNotEmpty
-            ? SavedLogin(server: server, username: username, password: password, label: '')
-            : null);
+              ? SavedLogin(
+                  server: server,
+                  username: username,
+                  password: password,
+                  label: '',
+                )
+              : null);
     if (auto != null) {
       await signIn(
         username: auto.username,
@@ -256,18 +273,26 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persistLogins() async {
     await _prefs?.setString(
-        _kLogins, jsonEncode(logins.map((l) => l.toJson()).toList()));
+      _kLogins,
+      jsonEncode(logins.map((l) => l.toJson()).toList()),
+    );
   }
 
   Future<void> setViewMode(ViewMode mode) async {
     viewMode = mode;
-    await _prefs?.setString(_kViewMode, mode == ViewMode.list ? 'list' : 'grid');
+    await _prefs?.setString(
+      _kViewMode,
+      mode == ViewMode.list ? 'list' : 'grid',
+    );
     notifyListeners();
   }
 
   Future<void> setDensity(Density value) async {
     density = value;
-    await _prefs?.setString(_kDensity, value == Density.compact ? 'compact' : 'comfortable');
+    await _prefs?.setString(
+      _kDensity,
+      value == Density.compact ? 'compact' : 'comfortable',
+    );
     notifyListeners();
   }
 
@@ -409,7 +434,8 @@ class AppState extends ChangeNotifier {
     for (var i = 0; i < candidates.length; i++) {
       final host = candidates[i];
       if (!silent && candidates.length > 1) {
-        discoveryNote = 'Trying ${panelLabel(host)} (${i + 1}/${candidates.length})…';
+        discoveryNote =
+            'Trying ${panelLabel(host)} (${i + 1}/${candidates.length})…';
         notifyListeners();
       }
       final c = XtreamClient(
@@ -454,10 +480,11 @@ class AppState extends ChangeNotifier {
     busy = false;
     discoveryNote = null;
     error = lastError?.message ?? 'No panel answered.';
-    errorHint = lastError?.hint ??
+    errorHint =
+        lastError?.hint ??
         (candidates.length > 1
             ? 'Tried ${candidates.length} panels. Check the username and password, '
-                'or add the provider’s server address under Advanced.'
+                  'or add the provider’s server address under Advanced.'
             : null);
     notifyListeners();
     return false;
@@ -465,7 +492,8 @@ class AppState extends ChangeNotifier {
 
   static String panelLabel(String server) {
     for (final p in kPanelPresets) {
-      if (XtreamClient.normaliseServer(p.url) == XtreamClient.normaliseServer(server)) {
+      if (XtreamClient.normaliseServer(p.url) ==
+          XtreamClient.normaliseServer(server)) {
         return p.name;
       }
     }
@@ -486,12 +514,14 @@ class AppState extends ChangeNotifier {
       l.password = pass;
       l.lastUsed = DateTime.now();
     } else {
-      logins.add(SavedLogin(
-        server: server,
-        username: user,
-        password: pass,
-        label: panelLabel(server),
-      ));
+      logins.add(
+        SavedLogin(
+          server: server,
+          username: user,
+          password: pass,
+          label: panelLabel(server),
+        ),
+      );
     }
     await _persistLogins();
   }
@@ -526,7 +556,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setCredentials({String? server, String? username, String? password, bool? remember}) {
+  void setCredentials({
+    String? server,
+    String? username,
+    String? password,
+    bool? remember,
+  }) {
     if (server != null) this.server = server;
     if (username != null) this.username = username;
     if (password != null) this.password = password;
@@ -554,7 +589,11 @@ class AppState extends ChangeNotifier {
     if (id != null) loadContent(tab, categoryId: id);
   }
 
-  Future<void> loadContent(ContentTab t, {String? categoryId, bool refresh = false}) async {
+  Future<void> loadContent(
+    ContentTab t, {
+    String? categoryId,
+    bool refresh = false,
+  }) async {
     final c = client;
     if (c == null) return;
     tab = t;
