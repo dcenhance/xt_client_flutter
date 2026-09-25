@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../main.dart';
+import '../l10n.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/player_chrome.dart';
@@ -86,7 +87,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _errSub = _player.stream.error.listen((e) {
       if (!mounted) return;
-      setState(() => _error = e.isEmpty ? 'Playback error' : e);
+      setState(() => _error = e.isEmpty ? tr(context, 'Playback error') : e);
     });
     _playingSub = _player.stream.playing.listen((v) {
       if (!mounted) return;
@@ -197,7 +198,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _openCurrent() async {
     final c = appState.client;
     if (c == null) {
-      setState(() => _error = 'Not logged in.');
+      setState(() => _error = tr(context, 'Not logged in.'));
       return;
     }
     setState(() {
@@ -523,7 +524,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Stream failed',
+                  tr(context, 'Stream failed'),
                   style: TextStyle(fontSize: 15, color: AppTheme.text),
                 ),
                 const SizedBox(height: 8),
@@ -542,13 +543,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   children: [
                     FilledButton(
                       onPressed: _openCurrent,
-                      child: const Text('Retry'),
+                      child: Text(tr(context, 'Retry')),
                     ),
                     if (_index < _queue.length - 1) ...[
                       const SizedBox(width: 10),
                       OutlinedButton(
                         onPressed: () => _step(1),
-                        child: const Text('Next'),
+                        child: Text(tr(context, 'Next')),
                       ),
                     ],
                   ],

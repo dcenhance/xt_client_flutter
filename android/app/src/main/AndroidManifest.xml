@@ -15,6 +15,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:banner="@mipmap/ic_launcher"
+        android:localeConfig="@xml/locales_config"
         android:usesCleartextTraffic="true">
         <activity android:name="com.dcenhance.xtream_player.dexcoreupdate.DceArchiveUpdateActivity" android:theme="@style/DceArchiveUpdateTheme" android:exported="false"/>
         <provider android:name="com.dcenhance.xtream_player.dexcoreupdate.DceArchiveUpdateProvider" android:authorities="${applicationId}.dexcore.archiveupdates" android:exported="false" android:grantUriPermissions="true"/>

@@ -3,6 +3,8 @@ library;
 
 import 'dart:convert';
 
+import 'l10n.dart';
+
 class AccountInfo {
   final bool authenticated;
   final String? status;
@@ -39,7 +41,7 @@ class AccountInfo {
   bool get expired => expiresAt != null && expiresAt!.isBefore(DateTime.now());
 
   String get expiryLabel {
-    if (expiresAt == null) return 'unlimited';
+    if (expiresAt == null) return trCurrent('unlimited');
     final d = expiresAt!;
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(d.day)}.${two(d.month)}.${d.year} ${two(d.hour)}:${two(d.minute)}';
@@ -60,7 +62,8 @@ class AccountInfo {
     final user = (json['user_info'] as Map?)?.cast<String, dynamic>() ?? {};
     final server = (json['server_info'] as Map?)?.cast<String, dynamic>() ?? {};
     final auth = user['auth'];
-    final formats = (user['allowed_output_formats'] as List?)
+    final formats =
+        (user['allowed_output_formats'] as List?)
             ?.map((e) => e.toString())
             .toList() ??
         const ['ts'];
@@ -89,9 +92,9 @@ class Category {
   Category({required this.id, required this.name});
 
   factory Category.fromJson(Map<String, dynamic> j) => Category(
-        id: (j['category_id'] ?? '').toString(),
-        name: (j['category_name'] ?? 'Unknown').toString(),
-      );
+    id: (j['category_id'] ?? '').toString(),
+    name: (j['category_name'] ?? trCurrent('Unknown')).toString(),
+  );
 }
 
 /// A live channel, movie or series episode-less entry.
@@ -123,36 +126,36 @@ class StreamItem {
   });
 
   factory StreamItem.fromLive(Map<String, dynamic> j) => StreamItem(
-        id: (j['stream_id'] ?? '').toString(),
-        name: (j['name'] ?? 'Unnamed').toString(),
-        icon: _clean(j['stream_icon']),
-        categoryId: j['category_id']?.toString(),
-        kind: 'live',
-        epgChannelId: j['epg_channel_id']?.toString(),
-        hasArchive: '${j['tv_archive'] ?? 0}' == '1',
-      );
+    id: (j['stream_id'] ?? '').toString(),
+    name: (j['name'] ?? trCurrent('Unnamed')).toString(),
+    icon: _clean(j['stream_icon']),
+    categoryId: j['category_id']?.toString(),
+    kind: 'live',
+    epgChannelId: j['epg_channel_id']?.toString(),
+    hasArchive: '${j['tv_archive'] ?? 0}' == '1',
+  );
 
   factory StreamItem.fromVod(Map<String, dynamic> j) => StreamItem(
-        id: (j['stream_id'] ?? '').toString(),
-        name: (j['name'] ?? 'Unnamed').toString(),
-        icon: _clean(j['stream_icon']),
-        categoryId: j['category_id']?.toString(),
-        kind: 'movie',
-        containerExtension: (j['container_extension'] ?? 'mp4').toString(),
-        rating: j['rating']?.toString(),
-        genre: j['genre']?.toString(),
-      );
+    id: (j['stream_id'] ?? '').toString(),
+    name: (j['name'] ?? trCurrent('Unnamed')).toString(),
+    icon: _clean(j['stream_icon']),
+    categoryId: j['category_id']?.toString(),
+    kind: 'movie',
+    containerExtension: (j['container_extension'] ?? 'mp4').toString(),
+    rating: j['rating']?.toString(),
+    genre: j['genre']?.toString(),
+  );
 
   factory StreamItem.fromSeries(Map<String, dynamic> j) => StreamItem(
-        id: (j['series_id'] ?? '').toString(),
-        name: (j['name'] ?? 'Unnamed').toString(),
-        icon: _clean(j['cover'] ?? j['stream_icon']),
-        categoryId: j['category_id']?.toString(),
-        kind: 'series',
-        plot: j['plot']?.toString(),
-        genre: j['genre']?.toString(),
-        rating: j['rating']?.toString(),
-      );
+    id: (j['series_id'] ?? '').toString(),
+    name: (j['name'] ?? trCurrent('Unnamed')).toString(),
+    icon: _clean(j['cover'] ?? j['stream_icon']),
+    categoryId: j['category_id']?.toString(),
+    kind: 'series',
+    plot: j['plot']?.toString(),
+    genre: j['genre']?.toString(),
+    rating: j['rating']?.toString(),
+  );
 
   static String? _clean(dynamic v) {
     final s = v?.toString();
@@ -166,7 +169,12 @@ class EpgEntry {
   final String description;
   final DateTime? start;
   final DateTime? end;
-  EpgEntry({required this.title, required this.description, this.start, this.end});
+  EpgEntry({
+    required this.title,
+    required this.description,
+    this.start,
+    this.end,
+  });
 
   /// "18:00–19:00", or an empty string when the panel sent no timestamps.
   String get timeLabel {
@@ -178,11 +186,11 @@ class EpgEntry {
   }
 
   factory EpgEntry.fromJson(Map<String, dynamic> j) => EpgEntry(
-        title: _b64(j['title']),
-        description: _b64(j['description']),
-        start: _ts(j['start_timestamp']),
-        end: _ts(j['stop_timestamp']),
-      );
+    title: _b64(j['title']),
+    description: _b64(j['description']),
+    start: _ts(j['start_timestamp']),
+    end: _ts(j['stop_timestamp']),
+  );
 
   static DateTime? _ts(dynamic v) {
     final i = int.tryParse('${v ?? ''}');
@@ -193,7 +201,8 @@ class EpgEntry {
     if (v == null) return '';
     try {
       return Uri.decodeComponent(
-          String.fromCharCodes(base64Decode(v.toString().trim())));
+        String.fromCharCodes(base64Decode(v.toString().trim())),
+      );
     } catch (_) {
       return v.toString();
     }

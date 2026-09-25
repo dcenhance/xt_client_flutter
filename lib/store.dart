@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' hide Category;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
+import 'l10n.dart';
 import 'panels.dart';
 import 'theme.dart';
 import 'xtream_client.dart';
@@ -77,6 +78,7 @@ class AppState extends ChangeNotifier {
   static const _kLogins = 'logins';
   static const _kWorking = 'working_servers';
   static const _kLayout = 'layout';
+  static const _kLanguage = 'language_tag';
 
   SharedPreferences? _prefs;
 
@@ -88,6 +90,7 @@ class AppState extends ChangeNotifier {
   Density density = Density.comfortable;
   String themeId = kGoldenOled.id;
   LayoutStyle layout = LayoutStyle.classic;
+  String languageTag = '';
 
   /// True when browsing a panel that answers without credentials.
   bool guest = false;
@@ -175,9 +178,9 @@ class AppState extends ChangeNotifier {
   bool get loggedIn => account != null || guest;
 
   String get tabLabel => switch (tab) {
-    ContentTab.live => 'Live TV',
-    ContentTab.movies => 'Movies',
-    ContentTab.series => 'Series',
+    ContentTab.live => trCurrent('Live TV'),
+    ContentTab.movies => trCurrent('Movies'),
+    ContentTab.series => trCurrent('Series'),
   };
 
   SavedLogin? get activeLogin {
@@ -196,6 +199,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    languageTag = _prefs!.getString(_kLanguage) ?? '';
+    if (languageTag.isNotEmpty &&
+        !supportedLanguageTags.contains(languageTag)) {
+      languageTag = '';
+    }
+    preferredLanguageTag = languageTag;
     server = _prefs!.getString(_kServer) ?? '';
     username = _prefs!.getString(_kUser) ?? '';
     remember = _prefs!.getBool(_kRemember) ?? true;
@@ -313,6 +322,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setLanguageTag(String tag) async {
+    if (tag.isNotEmpty && !supportedLanguageTags.contains(tag)) return;
+    languageTag = tag;
+    preferredLanguageTag = tag;
+    notifyListeners();
+    await _prefs?.setString(_kLanguage, tag);
+  }
+
   /// Browse a panel that answers without credentials. No account is claimed:
   /// if the panel refuses anonymous requests, the content lists stay empty and
   /// the error explains it.
@@ -426,7 +443,9 @@ class AppState extends ChangeNotifier {
       busy = true;
       error = null;
       errorHint = null;
-      discoveryNote = candidates.length > 1 ? 'Checking panels…' : null;
+      discoveryNote = candidates.length > 1
+          ? trCurrent('Checking panels…')
+          : null;
       notifyListeners();
     }
 
@@ -434,8 +453,11 @@ class AppState extends ChangeNotifier {
     for (var i = 0; i < candidates.length; i++) {
       final host = candidates[i];
       if (!silent && candidates.length > 1) {
-        discoveryNote =
-            'Trying ${panelLabel(host)} (${i + 1}/${candidates.length})…';
+        discoveryNote = trCurrent('Trying {panel} ({current}/{total})…', {
+          'panel': panelLabel(host),
+          'current': i + 1,
+          'total': candidates.length,
+        });
         notifyListeners();
       }
       final c = XtreamClient(
@@ -479,12 +501,14 @@ class AppState extends ChangeNotifier {
     client = null;
     busy = false;
     discoveryNote = null;
-    error = lastError?.message ?? 'No panel answered.';
+    error = lastError?.message ?? trCurrent('No panel answered.');
     errorHint =
         lastError?.hint ??
         (candidates.length > 1
-            ? 'Tried ${candidates.length} panels. Check the username and password, '
-                  'or add the provider’s server address under Advanced.'
+            ? trCurrent(
+                'Tried {count} panels. Check the username and password, or add the provider’s server address under Advanced.',
+                {'count': candidates.length},
+              )
             : null);
     notifyListeners();
     return false;

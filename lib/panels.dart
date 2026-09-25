@@ -17,15 +17,39 @@ class PanelPreset {
   final String url;
   final String region;
 
-  const PanelPreset({required this.name, required this.url, required this.region});
+  const PanelPreset({
+    required this.name,
+    required this.url,
+    required this.region,
+  });
 }
 
 const List<PanelPreset> kPanelPresets = [
-  PanelPreset(name: 'EUROPE 1', url: 'http://e-de.dynu.net:8080', region: 'Europe'),
-  PanelPreset(name: 'EUROPE 2', url: 'http://3teamall.xyz:8080', region: 'Europe'),
-  PanelPreset(name: 'TÜRKİYE PANEL 1', url: 'http://maxspectre.com:8080', region: 'Türkiye'),
-  PanelPreset(name: 'TÜRKİYE PANEL 2', url: 'http://kngkral38.com:8080', region: 'Türkiye'),
-  PanelPreset(name: 'TÜRKİYE İZNE GELENLER', url: 'http://e-tr.dynuddns.com:8080', region: 'Türkiye'),
+  PanelPreset(
+    name: 'EUROPE 1',
+    url: 'http://e-de.dynu.net:8080',
+    region: 'Europe',
+  ),
+  PanelPreset(
+    name: 'EUROPE 2',
+    url: 'http://3teamall.xyz:8080',
+    region: 'Europe',
+  ),
+  PanelPreset(
+    name: 'TÜRKİYE PANEL 1',
+    url: 'http://maxspectre.com:8080',
+    region: 'Türkiye',
+  ),
+  PanelPreset(
+    name: 'TÜRKİYE PANEL 2',
+    url: 'http://kngkral38.com:8080',
+    region: 'Türkiye',
+  ),
+  PanelPreset(
+    name: 'TÜRKİYE İZNE GELENLER',
+    url: 'http://e-tr.dynuddns.com:8080',
+    region: 'Türkiye',
+  ),
 ];
 
 /// Every preset URL, one per line — used to prefill the server tester.

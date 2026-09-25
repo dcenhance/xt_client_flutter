@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../models.dart';
 import '../theme.dart';
 import 'focus_ring.dart';
@@ -57,7 +58,7 @@ class PlayerTopChrome extends StatelessWidget {
                     children: [
                       PlayerRoundButton(
                         icon: Icons.arrow_back,
-                        tooltip: 'Back',
+                        tooltip: tr(context, 'Back'),
                         onTap: onBack,
                       ),
                       const SizedBox(width: 6),
@@ -79,7 +80,7 @@ class PlayerTopChrome extends StatelessWidget {
                             const SizedBox(height: 2),
                             Text(
                               now == null
-                                  ? _kindLabel(kind)
+                                  ? _kindLabel(context, kind)
                                   : '${_clock(now.start)}–${_clock(now.end)}  ${now.title}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -96,7 +97,7 @@ class PlayerTopChrome extends StatelessWidget {
                         icon: fullscreen
                             ? Icons.fullscreen_exit
                             : Icons.fullscreen,
-                        tooltip: 'Fullscreen',
+                        tooltip: tr(context, 'Fullscreen'),
                         onTap: onFullscreen,
                       ),
                     ],
@@ -110,14 +111,14 @@ class PlayerTopChrome extends StatelessWidget {
     );
   }
 
-  static String _kindLabel(String kind) {
+  static String _kindLabel(BuildContext context, String kind) {
     switch (kind) {
       case 'live':
-        return 'Live TV';
+        return tr(context, 'Live TV');
       case 'movie':
-        return 'Movie';
+        return tr(context, 'Movie');
       case 'episode':
-        return 'Episode';
+        return tr(context, 'Episode');
       default:
         return kind;
     }
@@ -213,7 +214,7 @@ class PlayerBottomChrome extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (seekable) _timeline(context) else _liveLine(),
+                      if (seekable) _timeline(context) else _liveLine(context),
                       const SizedBox(height: 8),
                       if (wide)
                         _transport(context)
@@ -225,21 +226,21 @@ class PlayerBottomChrome extends StatelessWidget {
                           alignment: Alignment.centerLeft,
                           child: KeyHintBar(
                             hints: seekable
-                                ? const [
-                                    ('↑ ↓', 'channel'),
-                                    ('← →', 'seek 10s'),
-                                    ('Enter', 'play/pause'),
-                                    ('M', 'mute'),
-                                    ('F', 'fullscreen'),
-                                    ('Esc', 'back'),
+                                ? [
+                                    ('↑ ↓', tr(context, 'channel')),
+                                    ('← →', tr(context, 'seek 10s')),
+                                    ('Enter', tr(context, 'play/pause')),
+                                    ('M', tr(context, 'mute')),
+                                    ('F', tr(context, 'fullscreen')),
+                                    ('Esc', tr(context, 'back')),
                                   ]
-                                : const [
-                                    ('↑ ↓', 'channel'),
-                                    ('← →', 'volume'),
-                                    ('Enter', 'play/pause'),
-                                    ('M', 'mute'),
-                                    ('F', 'fullscreen'),
-                                    ('Esc', 'back'),
+                                : [
+                                    ('↑ ↓', tr(context, 'channel')),
+                                    ('← →', tr(context, 'volume')),
+                                    ('Enter', tr(context, 'play/pause')),
+                                    ('M', tr(context, 'mute')),
+                                    ('F', tr(context, 'fullscreen')),
+                                    ('Esc', tr(context, 'back')),
                                   ],
                           ),
                         ),
@@ -323,7 +324,7 @@ class PlayerBottomChrome extends StatelessWidget {
     );
   }
 
-  Widget _liveLine() {
+  Widget _liveLine(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 6, right: 6, bottom: 2),
       child: Row(
@@ -337,9 +338,12 @@ class PlayerBottomChrome extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 7),
-          Text('LIVE', style: _timeStyle.copyWith(letterSpacing: 1.1)),
+          Text(
+            tr(context, 'LIVE'),
+            style: _timeStyle.copyWith(letterSpacing: 1.1),
+          ),
           const Spacer(),
-          Text('live stream', style: _timeStyle),
+          Text(tr(context, 'live stream'), style: _timeStyle),
         ],
       ),
     );
@@ -357,13 +361,13 @@ class PlayerBottomChrome extends StatelessWidget {
           children: [
             PlayerRoundButton(
               icon: Icons.skip_previous,
-              tooltip: 'Previous (↑)',
+              tooltip: tr(context, 'Previous (↑)'),
               onTap: canPrevious ? onPrev : null,
             ),
             if (seekable)
               PlayerRoundButton(
                 icon: Icons.replay_10,
-                tooltip: 'Back 10 s (←)',
+                tooltip: tr(context, 'Back 10 s (←)'),
                 onTap: () => onSeek(-10),
               ),
             PlayerPlayButton(
@@ -377,12 +381,12 @@ class PlayerBottomChrome extends StatelessWidget {
             if (seekable)
               PlayerRoundButton(
                 icon: Icons.forward_10,
-                tooltip: 'Forward 10 s (→)',
+                tooltip: tr(context, 'Forward 10 s (→)'),
                 onTap: () => onSeek(10),
               ),
             PlayerRoundButton(
               icon: Icons.skip_next,
-              tooltip: 'Next (↓)',
+              tooltip: tr(context, 'Next (↓)'),
               onTap: canNext ? onNext : null,
             ),
           ],
@@ -391,7 +395,7 @@ class PlayerBottomChrome extends StatelessWidget {
           children: [
             PlayerRoundButton(
               icon: muted || volume == 0 ? Icons.volume_off : Icons.volume_up,
-              tooltip: 'Mute (M)',
+              tooltip: tr(context, 'Mute (M)'),
               onTap: onMute,
             ),
             Expanded(child: _volumeSlider(context)),
@@ -399,7 +403,9 @@ class PlayerBottomChrome extends StatelessWidget {
               icon: cinema
                   ? Icons.light_mode_outlined
                   : Icons.dark_mode_outlined,
-              tooltip: cinema ? 'Exit cinema (C)' : 'Cinema (C)',
+              tooltip: cinema
+                  ? tr(context, 'Exit cinema (C)')
+                  : tr(context, 'Cinema (C)'),
               onTap: onCinema,
             ),
           ],
@@ -427,13 +433,13 @@ class PlayerBottomChrome extends StatelessWidget {
       children: [
         PlayerRoundButton(
           icon: Icons.skip_previous,
-          tooltip: 'Previous (↑)',
+          tooltip: tr(context, 'Previous (↑)'),
           onTap: canPrevious ? onPrev : null,
         ),
         if (seekable)
           PlayerRoundButton(
             icon: Icons.replay_10,
-            tooltip: 'Back 10 s (←)',
+            tooltip: tr(context, 'Back 10 s (←)'),
             onTap: () => onSeek(-10),
           ),
         PlayerPlayButton(
@@ -447,25 +453,27 @@ class PlayerBottomChrome extends StatelessWidget {
         if (seekable)
           PlayerRoundButton(
             icon: Icons.forward_10,
-            tooltip: 'Forward 10 s (→)',
+            tooltip: tr(context, 'Forward 10 s (→)'),
             onTap: () => onSeek(10),
           ),
         PlayerRoundButton(
           icon: Icons.skip_next,
-          tooltip: 'Next (↓)',
+          tooltip: tr(context, 'Next (↓)'),
           onTap: canNext ? onNext : null,
         ),
         const Spacer(),
         PlayerRoundButton(
           icon: muted || volume == 0 ? Icons.volume_off : Icons.volume_up,
-          tooltip: 'Mute (M)',
+          tooltip: tr(context, 'Mute (M)'),
           onTap: onMute,
         ),
         SizedBox(width: 132, child: _volumeSlider(context)),
         const SizedBox(width: 2),
         PlayerRoundButton(
           icon: cinema ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-          tooltip: cinema ? 'Exit cinema (C)' : 'Cinema (C)',
+          tooltip: cinema
+              ? tr(context, 'Exit cinema (C)')
+              : tr(context, 'Cinema (C)'),
           onTap: onCinema,
         ),
       ],
@@ -541,7 +549,7 @@ class PlayerPlayButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Play / pause (Enter, Space)',
+      message: tr(context, 'Play / pause (Enter, Space)'),
       child: FocusRing(
         borderRadius: 40,
         onSelect: onTap,

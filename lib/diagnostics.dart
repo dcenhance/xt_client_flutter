@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'l10n.dart';
 import 'xtream_client.dart';
 
 class PortProbe {
@@ -33,10 +34,21 @@ class PortProbe {
   });
 
   String get label {
-    if (!reachable) return 'port $port — no answer';
-    if (authenticated) return 'port $port — Xtream panel, login accepted';
-    if (xtreamLike) return 'port $port — Xtream panel, login refused';
-    return 'port $port — HTTP $statusCode, not Xtream';
+    if (!reachable) return trCurrent('port {port} — no answer', {'port': port});
+    if (authenticated) {
+      return trCurrent('port {port} — Xtream panel, login accepted', {
+        'port': port,
+      });
+    }
+    if (xtreamLike) {
+      return trCurrent('port {port} — Xtream panel, login refused', {
+        'port': port,
+      });
+    }
+    return trCurrent('port {port} — HTTP {status}, not Xtream', {
+      'port': port,
+      'status': statusCode,
+    });
   }
 }
 
@@ -72,9 +84,16 @@ class DiagnosticsResult {
 
   List<String> get report {
     final lines = <String>[];
-    lines.add('DNS: $host → ${addresses.isEmpty ? "no address" : addresses.join(", ")}');
+    lines.add(
+      trCurrent('DNS: {host} → {addresses}', {
+        'host': host,
+        'addresses': addresses.isEmpty
+            ? trCurrent('no address')
+            : addresses.join(', '),
+      }),
+    );
     if (placeholderDns) {
-      lines.add('That address is a placeholder, not a server.');
+      lines.add(trCurrent('That address is a placeholder, not a server.'));
     }
     for (final p in probes) {
       lines.add(p.label);
@@ -111,7 +130,9 @@ class Diagnostics {
     var placeholder = false;
     if (resolvedAddressesOverride != null) {
       addresses.addAll(resolvedAddressesOverride);
-      placeholder = resolvedAddressesOverride.any(placeholderAddresses.contains);
+      placeholder = resolvedAddressesOverride.any(
+        placeholderAddresses.contains,
+      );
     } else if (host.isNotEmpty) {
       try {
         final lookups = await InternetAddress.lookup(host);
@@ -120,26 +141,34 @@ class Diagnostics {
           if (placeholderAddresses.contains(a.address)) placeholder = true;
         }
       } on SocketException catch (e) {
-        addresses.add('lookup failed: ${e.osError?.message ?? e.message}');
+        addresses.add(
+          trCurrent('lookup failed: {error}', {
+            'error': e.osError?.message ?? e.message,
+          }),
+        );
       }
     }
 
     final ports = <int>{typedPort, ...candidatePorts};
     final probes = await Future.wait(
-      ports.map((p) => _probe(
-            host: host,
-            port: p,
-            https: schemeIsHttps && p == typedPort,
-            username: username,
-            password: password,
-            timeout: timeout,
-          )),
+      ports.map(
+        (p) => _probe(
+          host: host,
+          port: p,
+          https: schemeIsHttps && p == typedPort,
+          username: username,
+          password: password,
+          timeout: timeout,
+        ),
+      ),
     );
-    probes.sort((a, b) => a.port == typedPort
-        ? -1
-        : b.port == typedPort
-            ? 1
-            : a.port.compareTo(b.port));
+    probes.sort(
+      (a, b) => a.port == typedPort
+          ? -1
+          : b.port == typedPort
+          ? 1
+          : a.port.compareTo(b.port),
+    );
 
     return DiagnosticsResult(
       host: host,
@@ -166,13 +195,15 @@ class Diagnostics {
     required Duration timeout,
   }) async {
     if (host.isEmpty) {
-      return PortProbe(port: port, reachable: false, detail: 'no hostname given');
+      return PortProbe(
+        port: port,
+        reachable: false,
+        detail: trCurrent('no hostname given'),
+      );
     }
     final scheme = https ? 'https' : 'http';
-    final url = Uri.parse('$scheme://$host:$port/player_api.php').replace(queryParameters: {
-      'username': username,
-      'password': password,
-    });
+    final url = Uri.parse('$scheme://$host:$port/player_api.php')
+        .replace(queryParameters: {'username': username, 'password': password});
 
     final client = HttpClient()..connectionTimeout = timeout;
     client.badCertificateCallback = (_, _, _) => true;
@@ -183,7 +214,8 @@ class Diagnostics {
       final looksJson = body.trimLeft().startsWith('{');
       var xtreamLike = false;
       var authenticated = false;
-      if (looksJson && (body.contains('user_info') || body.contains('server_info'))) {
+      if (looksJson &&
+          (body.contains('user_info') || body.contains('server_info'))) {
         xtreamLike = true;
         try {
           final decoded = jsonDecode(body);
@@ -196,10 +228,13 @@ class Diagnostics {
       var detail = '';
       if (!xtreamLike) {
         final snippet = body.trim().replaceAll(RegExp(r'\s+'), ' ').take(120);
-        if (snippet.isNotEmpty) detail = 'said: "$snippet"';
+        if (snippet.isNotEmpty) {
+          detail = trCurrent('said: "{snippet}"', {'snippet': snippet});
+        }
         if (body.contains('1034')) {
-          detail = 'Cloudflare error 1034 — the DNS record points at a placeholder, '
-              'nothing is listening behind it';
+          detail = trCurrent(
+            'Cloudflare error 1034 — the DNS record points at a placeholder, nothing is listening behind it',
+          );
         }
       }
       return PortProbe(
@@ -211,11 +246,23 @@ class Diagnostics {
         detail: detail,
       );
     } on TimeoutException {
-      return PortProbe(port: port, reachable: false, detail: 'timed out');
+      return PortProbe(
+        port: port,
+        reachable: false,
+        detail: trCurrent('timed out'),
+      );
     } on SocketException catch (e) {
-      return PortProbe(port: port, reachable: false, detail: e.osError?.message ?? e.message);
+      return PortProbe(
+        port: port,
+        reachable: false,
+        detail: e.osError?.message ?? e.message,
+      );
     } on HandshakeException catch (e) {
-      return PortProbe(port: port, reachable: false, detail: 'TLS failed: ${e.message}');
+      return PortProbe(
+        port: port,
+        reachable: false,
+        detail: trCurrent('TLS failed: {error}', {'error': e.message}),
+      );
     } catch (e) {
       return PortProbe(port: port, reachable: false, detail: '$e');
     } finally {
@@ -232,32 +279,41 @@ class Diagnostics {
     final working = probes.where((p) => p.authenticated).toList();
     if (working.isNotEmpty) {
       final p = working.first;
-      return 'Login works on $host:$p.port — tap "Use this server" below.';
+      return trCurrent(
+        'Login works on {host}:{port} — tap "Use this server" below.',
+        {'host': host, 'port': p.port},
+      );
     }
     // A panel that answered and refused the login outranks every other
     // explanation: the network is fine, the credentials are the problem.
-    final panelRefused = probes.where((p) => p.xtreamLike && !p.authenticated).toList();
+    final panelRefused = probes
+        .where((p) => p.xtreamLike && !p.authenticated)
+        .toList();
     if (panelRefused.isNotEmpty) {
-      return 'Verdict: the panel is reachable on port ${panelRefused.first.port} but refused these '
-          'credentials — wrong username/password, an expired subscription, or too many connections.';
+      return trCurrent(
+        'Verdict: the panel is reachable on port {port} but refused these credentials — wrong username/password, an expired subscription, or too many connections.',
+        {'port': panelRefused.first.port},
+      );
     }
     final answered = probes.where((p) => p.reachable && !p.xtreamLike).toList();
     if (placeholder) {
       // Cloudflare answers on every port with a 1034 page, so this has to be
       // checked before the generic "host answered" branch.
-      return 'Verdict: $host resolves to a placeholder address (Cloudflare uses 1.1.1.1 / 1.0.0.1 '
-          'when a DNS record points nowhere). No request can reach a server there, so the username '
-          'and password are never even sent. This has to be fixed by whoever gave you the address — '
-          'ask them for the current panel host; if an app you used before still logs in, it is '
-          'talking to a different host.';
+      return trCurrent(
+        'Verdict: {host} resolves to a placeholder address (Cloudflare uses 1.1.1.1 / 1.0.0.1 when a DNS record points nowhere). No request can reach a server there, so the username and password are never even sent. This has to be fixed by whoever gave you the address — ask them for the current panel host; if an app you used before still logs in, it is talking to a different host.',
+        {'host': host},
+      );
     }
     if (answered.isNotEmpty) {
-      return 'Verdict: the host answers (HTTP ${answered.first.statusCode}) but not as an Xtream '
-          'panel. Most often that is an IP/network gate (401/403/511/512) or a wrong port — the '
-          'detail lines above say which.';
+      return trCurrent(
+        'Verdict: the host answers (HTTP {status}) but not as an Xtream panel. Most often that is an IP/network gate (401/403/511/512) or a wrong port — the detail lines above say which.',
+        {'status': answered.first.statusCode},
+      );
     }
-    return 'Verdict: nothing answered on $host (typed port $typedPort and the usual panel ports). '
-        'Either the host is offline or firewalled, or the address is wrong.';
+    return trCurrent(
+      'Verdict: nothing answered on {host} (typed port {port} and the usual panel ports). Either the host is offline or firewalled, or the address is wrong.',
+      {'host': host, 'port': typedPort},
+    );
   }
 }
 
@@ -296,22 +352,33 @@ Future<List<CandidateResult>> testServers({
     );
     try {
       final info = await client.login();
-      results.add(CandidateResult(
-        server: client.server,
-        ok: true,
-        note: info.expired
-            ? 'login ok but EXPIRED ${info.expiryLabel}'
-            : 'login ok · expires ${info.expiryLabel} · '
-                '${info.activeConnections}/${info.maxConnections} conn',
-      ));
+      results.add(
+        CandidateResult(
+          server: client.server,
+          ok: true,
+          note: info.expired
+              ? trCurrent('login ok but EXPIRED {expiry}', {
+                  'expiry': info.expiryLabel,
+                })
+              : trCurrent('login ok · expires {expiry} · {active}/{max} conn', {
+                  'expiry': info.expiryLabel,
+                  'active': info.activeConnections,
+                  'max': info.maxConnections,
+                }),
+        ),
+      );
     } on XtreamException catch (e) {
-      results.add(CandidateResult(
-        server: raw,
-        ok: false,
-        // 511/512 style answers mean the panel replied and turned the login
-        // down — say that instead of making it sound like the network failed.
-        note: e.kind == XtreamErrorKind.http ? 'refused — ${e.message}' : e.message,
-      ));
+      results.add(
+        CandidateResult(
+          server: raw,
+          ok: false,
+          // 511/512 style answers mean the panel replied and turned the login
+          // down — say that instead of making it sound like the network failed.
+          note: e.kind == XtreamErrorKind.http
+              ? trCurrent('refused — {error}', {'error': e.message})
+              : e.message,
+        ),
+      );
     } catch (e) {
       results.add(CandidateResult(server: raw, ok: false, note: '$e'));
     }

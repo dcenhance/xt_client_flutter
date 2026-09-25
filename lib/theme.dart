@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
+
 /// A colour scheme for the whole app.
 ///
 /// The palette is deliberately a value object rather than a pile of constants:
@@ -8,8 +10,26 @@ import 'package:flutter/material.dart';
 /// repaints everything without touching individual widgets.
 class AppPalette {
   final String id;
-  final String name;
-  final String blurb;
+  final String _name;
+  final String _blurb;
+  String get name => switch (id) {
+    'amber' => trCurrent('Amber Noir'),
+    'midnight' => trCurrent('Midnight'),
+    'oled' => trCurrent('Golden OLED'),
+    'forest' => trCurrent('Forest'),
+    'violet' => trCurrent('Plum'),
+    'light' => trCurrent('Daylight'),
+    _ => _name,
+  };
+  String get blurb => switch (id) {
+    'amber' => trCurrent('Warm dark, gold and rose'),
+    'midnight' => trCurrent('Deep blue, ice accents'),
+    'oled' => trCurrent('Pure black, gold leaf'),
+    'forest' => trCurrent('Deep green, copper'),
+    'violet' => trCurrent('Plum, violet, pink'),
+    'light' => trCurrent('Paper white, ink text'),
+    _ => _blurb,
+  };
   final Color background;
   final Color surface;
   final Color card;
@@ -25,8 +45,8 @@ class AppPalette {
 
   const AppPalette({
     required this.id,
-    required this.name,
-    required this.blurb,
+    required String name,
+    required String blurb,
     required this.background,
     required this.surface,
     required this.card,
@@ -39,7 +59,11 @@ class AppPalette {
     required this.ok,
     required this.hero,
     this.brightness = Brightness.dark,
-  });
+  }) : // Preserve the named public constructor while keeping source copy const.
+       // ignore: prefer_initializing_formals
+       _name = name,
+       // ignore: prefer_initializing_formals
+       _blurb = blurb;
 
   bool get isDark => brightness == Brightness.dark;
 

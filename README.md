@@ -110,6 +110,17 @@ Six palettes ship in the app, switchable live under **Account → Theme** and ke
 
 Picking one repaints the whole app immediately — no restart, and the choice is remembered.
 
+### Languages
+
+**Account → Language** opens a scrollable picker for English, German, Spanish, French, Italian,
+Portuguese, Dutch, Polish, Czech, Russian, Ukrainian, Turkish, Arabic, Hindi, Indonesian,
+Japanese, Korean, Simplified Chinese, Swedish, Greek and Traditional Chinese. **System default**
+follows the device; a chosen language applies immediately and persists across restarts. Android's
+per-app language settings expose the same tags. The source strings and translations live under
+`lib/l10n/`; run `python3 scripts/build_l10n_catalog.py check` to validate key and placeholder
+parity, and `generate` after modifying translations. Provider-supplied titles, panel identities,
+URLs and raw network replies remain as provided by the server.
+
 ### Signing in, and the panel
 
 The login screen is the app mark and name, **username, password, remember me, sign in** — nothing

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../main.dart';
 import '../store.dart';
 import '../theme.dart';
@@ -10,33 +11,6 @@ import 'focus_ring.dart';
 class LayoutPicker extends StatelessWidget {
   const LayoutPicker({super.key});
 
-  static const _labels = <LayoutStyle, (String, String)>{
-    LayoutStyle.classic: (
-      'Classic',
-      'Tab strip and category rail on desktop, bottom nav on phones',
-    ),
-    LayoutStyle.sidebar: (
-      'Sidebar',
-      'Permanent vertical navigation, phone and desktop alike',
-    ),
-    LayoutStyle.showcase: (
-      'Showcase',
-      'Big hero banner over per-category poster rails',
-    ),
-    LayoutStyle.dashboard: (
-      'Dashboard',
-      'Compact section tiles with artwork and a remote-friendly focus path',
-    ),
-    LayoutStyle.cinema: (
-      'Cinema',
-      'Fixed artwork behind a scrolling hero and category shelves',
-    ),
-    LayoutStyle.masterDetail: (
-      'Master-detail',
-      'Category column on the left, content on the right',
-    ),
-  };
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -45,13 +19,45 @@ class LayoutPicker extends StatelessWidget {
         spacing: 10,
         runSpacing: 10,
         children: [
-          for (final entry in _labels.entries)
+          for (final style in LayoutStyle.values)
             _LayoutTile(
-              style: entry.key,
-              name: entry.value.$1,
-              blurb: entry.value.$2,
-              selected: appState.layout == entry.key,
-              onSelect: () => appState.setLayout(entry.key),
+              style: style,
+              name: switch (style) {
+                LayoutStyle.classic => tr(context, 'Classic'),
+                LayoutStyle.sidebar => tr(context, 'Sidebar'),
+                LayoutStyle.showcase => tr(context, 'Showcase'),
+                LayoutStyle.dashboard => tr(context, 'Dashboard'),
+                LayoutStyle.cinema => tr(context, 'Cinema'),
+                LayoutStyle.masterDetail => tr(context, 'Master-detail'),
+              },
+              blurb: switch (style) {
+                LayoutStyle.classic => tr(
+                  context,
+                  'Tab strip and category rail on desktop, bottom nav on phones',
+                ),
+                LayoutStyle.sidebar => tr(
+                  context,
+                  'Permanent vertical navigation, phone and desktop alike',
+                ),
+                LayoutStyle.showcase => tr(
+                  context,
+                  'Big hero banner over per-category poster rails',
+                ),
+                LayoutStyle.dashboard => tr(
+                  context,
+                  'Compact section tiles with artwork and a remote-friendly focus path',
+                ),
+                LayoutStyle.cinema => tr(
+                  context,
+                  'Fixed artwork behind a scrolling hero and category shelves',
+                ),
+                LayoutStyle.masterDetail => tr(
+                  context,
+                  'Category column on the left, content on the right',
+                ),
+              },
+              selected: appState.layout == style,
+              onSelect: () => appState.setLayout(style),
             ),
         ],
       ),

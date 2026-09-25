@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'l10n.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'store.dart';
@@ -28,6 +30,17 @@ class XtreamPlayerApp extends StatelessWidget {
       builder: (context, _) => MaterialApp(
         title: 'Spectre',
         debugShowCheckedModeBanner: false,
+        supportedLocales: supportedAppLocales,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        locale: appState.languageTag.isEmpty
+            ? null
+            : localeForTag(appState.languageTag),
+        localeResolutionCallback: (device, supported) =>
+            localeForTag(languageTagFor(device ?? const Locale('en'))),
         // Rebuilt from the active palette, so picking a theme repaints at once.
         theme: AppTheme.data(),
         home: AppShortcuts(
@@ -43,7 +56,10 @@ class XtreamPlayerApp extends StatelessWidget {
                 transitionBuilder: (child, animation) => FadeTransition(
                   opacity: animation,
                   child: ScaleTransition(
-                    scale: Tween<double>(begin: 0.97, end: 1).animate(animation),
+                    scale: Tween<double>(
+                      begin: 0.97,
+                      end: 1,
+                    ).animate(animation),
                     child: child,
                   ),
                 ),

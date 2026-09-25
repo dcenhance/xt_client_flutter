@@ -12,6 +12,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import 'models.dart';
+import 'l10n.dart';
 
 /// Addresses that mean "this record points nowhere" rather than at a server.
 /// Loopback is deliberately absent: 127.0.0.1 is a legitimate panel address.
@@ -47,35 +48,41 @@ class XtreamException implements Exception {
   String get hint {
     switch (kind) {
       case XtreamErrorKind.unreachable:
-        return 'The host did not answer at all. Usual causes: wrong hostname/port, '
-            'DNS pointing somewhere dead, firewall, or the panel not listening on that port.';
+        return trCurrent(
+          'The host did not answer at all. Usual causes: wrong hostname/port, DNS pointing somewhere dead, firewall, or the panel not listening on that port.',
+        );
       case XtreamErrorKind.tlsMismatch:
-        return 'That port speaks plain HTTP, not TLS — drop the https:// (Xtream panels are '
-            'normally http://host:8080). The app already retries over http, so reaching this '
-            'message means the http attempt failed too.';
+        return trCurrent(
+          'That port speaks plain HTTP, not TLS — drop the https:// (Xtream panels are normally http://host:8080). The app already retries over http, so reaching this message means the http attempt failed too.',
+        );
       case XtreamErrorKind.deadDns:
-        return 'The hostname resolves to an address that cannot run a panel (Cloudflare uses '
-            '1.1.1.1 / 1.0.0.1 when a DNS record points nowhere). Nothing sent there can reach a '
-            'server, so the username and password are never even transmitted. Ask whoever supplied '
-            'the address for the current host, or paste their host list into "Test a list of servers".';
+        return trCurrent(
+          'The hostname resolves to an address that cannot run a panel (Cloudflare uses 1.1.1.1 / 1.0.0.1 when a DNS record points nowhere). Nothing sent there can reach a server, so the username and password are never even transmitted. Ask whoever supplied the address for the current host, or paste their host list into "Test a list of servers".',
+        );
       case XtreamErrorKind.wrongServer:
-        return 'Either the address is not a valid URL (expected http://host:8080) or something '
-            'answered that is not an Xtream panel (no JSON).';
+        return trCurrent(
+          'Either the address is not a valid URL (expected http://host:8080) or something answered that is not an Xtream panel (no JSON).',
+        );
       case XtreamErrorKind.http:
         if ((body ?? '').contains('1034')) {
-          return "Cloudflare error 1034 means the domain's DNS record points at a placeholder "
-              'address (e.g. 1.1.1.1), so no request ever reaches a server. No client can log in '
-              'until the provider fixes that record — the credentials are not the problem.';
+          return trCurrent(
+            "Cloudflare error 1034 means the domain's DNS record points at a placeholder address (e.g. 1.1.1.1), so no request ever reaches a server. No client can log in until the provider fixes that record — the credentials are not the problem.",
+          );
         }
-        return 'The panel answered with HTTP $statusCode but not with playlist JSON. '
-            'Many panels use 401/403/511/512 for "not allowed from this IP" or "bad credentials".';
+        return trCurrent(
+          'The panel answered with HTTP {statusCode} but not with playlist JSON. Many panels use 401/403/511/512 for "not allowed from this IP" or "bad credentials".',
+          {'statusCode': statusCode},
+        );
       case XtreamErrorKind.rejected:
-        return 'The panel is reachable and refused these credentials: wrong username/password, '
-            'expired subscription, or too many connections in use.';
+        return trCurrent(
+          'The panel is reachable and refused these credentials: wrong username/password, expired subscription, or too many connections in use.',
+        );
       case XtreamErrorKind.expired:
-        return 'The account exists but its expiry date has passed.';
+        return trCurrent('The account exists but its expiry date has passed.');
       case XtreamErrorKind.badResponse:
-        return 'The panel returned data this client could not parse.';
+        return trCurrent(
+          'The panel returned data this client could not parse.',
+        );
     }
   }
 
@@ -111,13 +118,23 @@ class AnonProbe {
   bool get open => liveCategories + vodCategories + seriesCategories > 0;
 
   String get label {
-    if (!reachable) return 'no answer — $note';
-    if (!xtreamLike) return 'answers, but not like an Xtream panel — $note';
-    if (open) {
-      return 'OPEN — $liveCategories live / $vodCategories VOD / '
-          '$seriesCategories series categories without login';
+    if (!reachable) return trCurrent('no answer — {note}', {'note': note});
+    if (!xtreamLike) {
+      return trCurrent('answers, but not like an Xtream panel — {note}', {
+        'note': note,
+      });
     }
-    return 'panel answers but keeps its lists private';
+    if (open) {
+      return trCurrent(
+        'OPEN — {live} live / {vod} VOD / {series} series categories without login',
+        {
+          'live': liveCategories,
+          'vod': vodCategories,
+          'series': seriesCategories,
+        },
+      );
+    }
+    return trCurrent('panel answers but keeps its lists private');
   }
 }
 
@@ -127,7 +144,12 @@ Future<AnonProbe> probeAnonymous({
   Duration timeout = const Duration(seconds: 10),
 }) async {
   final base = XtreamClient.normaliseServer(server);
-  final c = XtreamClient(server: base, username: '', password: '', timeout: timeout);
+  final c = XtreamClient(
+    server: base,
+    username: '',
+    password: '',
+    timeout: timeout,
+  );
   var reachable = false;
   var xtreamLike = false;
   var live = 0;
@@ -144,7 +166,10 @@ Future<AnonProbe> probeAnonymous({
       uri = Uri.parse('$base/player_api.php?action=$action');
       uri.port; // forces port validation
     } on FormatException catch (e) {
-      note = 'The server address "$base" is not a valid URL (${e.message}).';
+      note = trCurrent(
+        'The server address "{server}" is not a valid URL ({reason}).',
+        {'server': base, 'reason': e.message},
+      );
       break;
     }
     try {
@@ -176,7 +201,9 @@ Future<AnonProbe> probeAnonymous({
     liveCategories: live,
     vodCategories: vod,
     seriesCategories: series,
-    note: note.isEmpty ? (reachable ? 'HTTP 200' : 'no response') : note,
+    note: note.isEmpty
+        ? (reachable ? 'HTTP 200' : trCurrent('no response'))
+        : note,
   );
 }
 
@@ -226,7 +253,8 @@ class XtreamClient {
       'password': password,
       ...extra,
     };
-    return Uri.parse('$effectiveServer/player_api.php').replace(queryParameters: params);
+    return Uri.parse('$effectiveServer/player_api.php')
+        .replace(queryParameters: params);
   }
 
   /// Rejects malformed addresses with a readable message instead of letting
@@ -241,7 +269,10 @@ class XtreamClient {
     } on FormatException catch (e) {
       throw XtreamException(
         XtreamErrorKind.wrongServer,
-        'The server address "$server" is not a valid URL (${e.message}).',
+        trCurrent(
+          'The server address "{server}" is not a valid URL ({reason}).',
+          {'server': server, 'reason': e.message},
+        ),
       );
     }
   }
@@ -277,7 +308,8 @@ class XtreamClient {
     final host = Uri.tryParse(server)?.host ?? '';
     if (host.isEmpty) return null;
     try {
-      final addresses = resolvedAddressesOverride ??
+      final addresses =
+          resolvedAddressesOverride ??
           (await InternetAddress.lookup(host)).map((a) => a.address).toList();
       for (final a in addresses) {
         if (placeholderAddresses.contains(a)) return a;
@@ -295,43 +327,77 @@ class XtreamClient {
           .get(uri, headers: {'User-Agent': 'XtreamPlayer/0.1 (Flutter)'})
           .timeout(_timeout);
     } on TimeoutException {
-      throw XtreamException(XtreamErrorKind.unreachable, 'Timed out talking to $server');
+      throw XtreamException(
+        XtreamErrorKind.unreachable,
+        trCurrent('Timed out talking to {server}', {'server': server}),
+      );
     } on HandshakeException catch (e) {
       throw XtreamException(
         XtreamErrorKind.tlsMismatch,
-        'TLS handshake with ${uri.host}:${uri.port} failed: ${e.message}',
+        trCurrent('TLS handshake with {host}:{port} failed: {reason}', {
+          'host': uri.host,
+          'port': uri.port,
+          'reason': e.message,
+        }),
       );
     } on TlsException catch (e) {
       throw XtreamException(
         XtreamErrorKind.tlsMismatch,
-        'TLS handshake with ${uri.host}:${uri.port} failed: ${e.message}',
+        trCurrent('TLS handshake with {host}:{port} failed: {reason}', {
+          'host': uri.host,
+          'port': uri.port,
+          'reason': e.message,
+        }),
       );
     } on SocketException catch (e) {
       throw XtreamException(
         XtreamErrorKind.unreachable,
-        'Cannot reach $server: ${e.osError?.message ?? e.message}',
+        trCurrent('Cannot reach {server}: {reason}', {
+          'server': server,
+          'reason': e.osError?.message ?? e.message,
+        }),
       );
     } on HttpException catch (e) {
-      throw XtreamException(XtreamErrorKind.unreachable, 'HTTP failure to $server: ${e.message}');
+      throw XtreamException(
+        XtreamErrorKind.unreachable,
+        trCurrent('HTTP failure to {server}: {reason}', {
+          'server': server,
+          'reason': e.message,
+        }),
+      );
     } catch (e) {
       final text = '$e';
-      if (text.contains('WRONG_VERSION_NUMBER') || text.contains('HandshakeException')) {
+      if (text.contains('WRONG_VERSION_NUMBER') ||
+          text.contains('HandshakeException')) {
         throw XtreamException(
           XtreamErrorKind.tlsMismatch,
-          'TLS handshake with ${uri.host}:${uri.port} failed: $text',
+          trCurrent('TLS handshake with {host}:{port} failed: {reason}', {
+            'host': uri.host,
+            'port': uri.port,
+            'reason': text,
+          }),
         );
       }
-      throw XtreamException(XtreamErrorKind.unreachable, 'Cannot reach $server: $text');
+      throw XtreamException(
+        XtreamErrorKind.unreachable,
+        trCurrent('Cannot reach {server}: {reason}', {
+          'server': server,
+          'reason': text,
+        }),
+      );
     }
 
     final body = res.body.trim();
     final looksJson = body.startsWith('{') || body.startsWith('[');
     if (!looksJson) {
       // A TLS server answering an http:// request sends a binary record header.
-      if (body.isNotEmpty && (body.codeUnitAt(0) == 0x16 || body.contains('\u0016\u0003'))) {
+      if (body.isNotEmpty &&
+          (body.codeUnitAt(0) == 0x16 || body.contains('\u0016\u0003'))) {
         throw XtreamException(
           XtreamErrorKind.tlsMismatch,
-          '$server answered with TLS, so it needs https://',
+          trCurrent('{server} answered with TLS, so it needs https://', {
+            'server': server,
+          }),
         );
       }
       final looksCloudflareDns =
@@ -339,7 +405,10 @@ class XtreamClient {
       if (looksCloudflareDns) {
         throw XtreamException(
           XtreamErrorKind.http,
-          "Cloudflare could not reach the origin ($server): error code 1034",
+          trCurrent(
+            'Cloudflare could not reach the origin ({server}): error code 1034',
+            {'server': server},
+          ),
           statusCode: res.statusCode,
           body: body,
         );
@@ -347,14 +416,17 @@ class XtreamClient {
       if (res.statusCode >= 400) {
         throw XtreamException(
           XtreamErrorKind.http,
-          'HTTP ${res.statusCode} from $server',
+          trCurrent('HTTP {statusCode} from {server}', {
+            'statusCode': res.statusCode,
+            'server': server,
+          }),
           statusCode: res.statusCode,
           body: body,
         );
       }
       throw XtreamException(
         XtreamErrorKind.wrongServer,
-        'Non-JSON reply from $server',
+        trCurrent('Non-JSON reply from {server}', {'server': server}),
         statusCode: res.statusCode,
         body: body,
       );
@@ -362,7 +434,10 @@ class XtreamClient {
     try {
       return jsonDecode(body);
     } catch (e) {
-      throw XtreamException(XtreamErrorKind.badResponse, 'Could not parse JSON from $server');
+      throw XtreamException(
+        XtreamErrorKind.badResponse,
+        trCurrent('Could not parse JSON from {server}', {'server': server}),
+      );
     }
   }
 
@@ -387,7 +462,10 @@ class XtreamClient {
           final host = Uri.tryParse(server)?.host ?? server;
           throw XtreamException(
             XtreamErrorKind.deadDns,
-            'DNS for $host points at $dead, a placeholder address — no server is reachable there',
+            trCurrent(
+              'DNS for {host} points at {address}, a placeholder address — no server is reachable there',
+              {'host': host, 'address': dead},
+            ),
             statusCode: e.statusCode,
             body: dead,
           );
@@ -396,21 +474,33 @@ class XtreamClient {
       rethrow;
     }
     if (data is! Map) {
-      throw XtreamException(XtreamErrorKind.badResponse, 'Unexpected login response');
+      throw XtreamException(
+        XtreamErrorKind.badResponse,
+        trCurrent('Unexpected login response'),
+      );
     }
-    final info = AccountInfo.fromJson(data.cast<String, dynamic>(), username: username);
+    final info = AccountInfo.fromJson(
+      data.cast<String, dynamic>(),
+      username: username,
+    );
     if (!info.authenticated) {
       if (info.expired) {
         throw XtreamException(
           XtreamErrorKind.expired,
-          info.message ?? 'Account expired on ${info.expiryLabel}',
+          info.message ??
+              trCurrent('Account expired on {date}', {
+                'date': info.expiryLabel,
+              }),
         );
       }
       throw XtreamException(
         XtreamErrorKind.rejected,
         info.message != null && info.message!.isNotEmpty
-            ? 'Panel refused these credentials (panel said: "${info.message}")'
-            : 'Panel refused these credentials',
+            ? trCurrent(
+                'Panel refused these credentials (panel said: "{message}")',
+                {'message': info.message},
+              )
+            : trCurrent('Panel refused these credentials'),
       );
     }
     return info;
@@ -427,10 +517,13 @@ class XtreamClient {
   }
 
   Future<List<StreamItem>> _streams(String action, {String? categoryId}) async {
-    final data = await _getJson(_api({
-      'action': action,
-      if (categoryId != null && categoryId.isNotEmpty) 'category_id': categoryId,
-    }));
+    final data = await _getJson(
+      _api({
+        'action': action,
+        if (categoryId != null && categoryId.isNotEmpty)
+          'category_id': categoryId,
+      }),
+    );
     if (data is! List) return const [];
     return data.whereType<Map>().map((e) {
       final m = e.cast<String, dynamic>();
@@ -447,7 +540,8 @@ class XtreamClient {
 
   Future<List<Category>> liveCategories() => _categories('get_live_categories');
   Future<List<Category>> vodCategories() => _categories('get_vod_categories');
-  Future<List<Category>> seriesCategories() => _categories('get_series_categories');
+  Future<List<Category>> seriesCategories() =>
+      _categories('get_series_categories');
 
   Future<List<StreamItem>> liveStreams({String? categoryId}) =>
       _streams('get_live_streams', categoryId: categoryId);
@@ -459,11 +553,13 @@ class XtreamClient {
   /// Now/next for a channel. Returns an empty list when the panel has no EPG.
   Future<List<EpgEntry>> shortEpg(String streamId, {int limit = 2}) async {
     try {
-      final data = await _getJson(_api({
-        'action': 'get_short_epg',
-        'stream_id': streamId,
-        'limit': '$limit',
-      }));
+      final data = await _getJson(
+        _api({
+          'action': 'get_short_epg',
+          'stream_id': streamId,
+          'limit': '$limit',
+        }),
+      );
       if (data is! Map) return const [];
       final list = data['epg_listings'];
       if (list is! List) return const [];
@@ -489,10 +585,9 @@ class XtreamClient {
 
   /// Series episodes need one extra call: action=get_series_info&series_id=..
   Future<List<StreamItem>> seriesEpisodes(StreamItem series) async {
-    final data = await _getJson(_api({
-      'action': 'get_series_info',
-      'series_id': series.id,
-    }));
+    final data = await _getJson(
+      _api({'action': 'get_series_info', 'series_id': series.id}),
+    );
     if (data is! Map) return const [];
     final episodes = data['episodes'];
     if (episodes is! Map) return const [];
@@ -502,15 +597,20 @@ class XtreamClient {
       if (list is! List) continue;
       for (final ep in list.whereType<Map>()) {
         final m = ep.cast<String, dynamic>();
-        out.add(StreamItem(
-          id: (m['id'] ?? '').toString(),
-          name: 'S${season.padLeft(2, '0')}E${'${m['episode_num'] ?? 0}'.padLeft(2, '0')} · '
-              '${m['title'] ?? 'Episode'}',
-          kind: 'episode',
-          containerExtension: (m['container_extension'] ?? 'mp4').toString(),
-          icon: series.icon,
-          plot: m['info'] is Map ? (m['info']['plot']?.toString()) : null,
-        ));
+        out.add(
+          StreamItem(
+            id: (m['id'] ?? '').toString(),
+            name: trCurrent('S{season}E{episode} · {title}', {
+              'season': season.padLeft(2, '0'),
+              'episode': '${m['episode_num'] ?? 0}'.padLeft(2, '0'),
+              'title': m['title'] ?? trCurrent('Episode'),
+            }),
+            kind: 'episode',
+            containerExtension: (m['container_extension'] ?? 'mp4').toString(),
+            icon: series.icon,
+            plot: m['info'] is Map ? (m['info']['plot']?.toString()) : null,
+          ),
+        );
       }
     }
     return out;
@@ -519,5 +619,6 @@ class XtreamClient {
   String playlistUrl({bool hls = false}) =>
       '$effectiveServer/get.php?username=$username&password=$password&type=m3u_plus&output=${hls ? 'm3u8' : 'ts'}';
 
-  String epgUrl() => '$effectiveServer/xmltv.php?username=$username&password=$password';
+  String epgUrl() =>
+      '$effectiveServer/xmltv.php?username=$username&password=$password';
 }

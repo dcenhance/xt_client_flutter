@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n.dart';
 import '../main.dart';
 import '../panels.dart';
 import '../store.dart';
@@ -134,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final chosen = await showDialog<PanelPreset>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Select panel'),
+        title: Text(tr(context, 'Select panel')),
         contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
         content: SizedBox(
           width: 380,
@@ -202,8 +203,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               const SizedBox(height: 6),
               Text(
-                'Leave it automatic and the app picks the panel that accepts '
-                'your account.',
+                tr(
+                  context,
+                  'Leave it automatic and the app picks the panel that accepts your account.',
+                ),
                 style: TextStyle(
                   fontSize: 11.5,
                   color: AppTheme.muted,
@@ -270,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         FadeSlideIn(
                           delay: const Duration(milliseconds: 220),
                           child: _FieldShell(
-                            label: 'Username',
+                            label: tr(context, 'Username'),
                             icon: Icons.person_outline,
                             focused: _userFocus.hasFocus,
                             child: TextField(
@@ -296,13 +299,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         FadeSlideIn(
                           delay: const Duration(milliseconds: 300),
                           child: _FieldShell(
-                            label: 'Password',
+                            label: tr(context, 'Password'),
                             icon: Icons.lock_outline,
                             focused: _passFocus.hasFocus,
                             trailing: IconButton(
                               tooltip: _obscure
-                                  ? 'Show password'
-                                  : 'Hide password',
+                                  ? tr(context, 'Show password')
+                                  : tr(context, 'Hide password'),
                               // Right from the password's end reveals this on a
                               // remote; Up/Down still follow the short sign-in path.
                               focusNode: _revealFocus,
@@ -357,8 +360,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           delay: const Duration(milliseconds: 480),
                           child: _PanelButton(
                             label: _server == null
-                                ? 'Panel · Automatic'
-                                : 'Panel · ${panelNameFor(_server!)}',
+                                ? tr(context, 'Panel · Automatic')
+                                : tr(context, 'Panel · {name}', {
+                                    'name': panelNameFor(_server!),
+                                  }),
                             automatic: _server == null,
                             enabled: !busy,
                             onTap: _pickPanel,
@@ -466,7 +471,7 @@ class _BrandHeader extends StatelessWidget {
           delay: const Duration(milliseconds: 200),
           offset: const Offset(0, 8),
           child: Text(
-            'Live TV, movies and series from your own panel',
+            tr(context, 'Live TV, movies and series from your own panel'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12.5,
@@ -649,14 +654,14 @@ class _RememberRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Remember me',
+              tr(context, 'Remember me'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 13, color: AppTheme.text),
             ),
           ),
           Text(
-            'fills in next time',
+            tr(context, 'fills in next time'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 11, color: AppTheme.muted),
@@ -695,21 +700,21 @@ class _SignInButton extends StatelessWidget {
                 ? Row(
                     key: const ValueKey('busy'),
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      SizedBox(
+                    children: [
+                      const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      SizedBox(width: 10),
-                      Text('Signing in…'),
+                      const SizedBox(width: 10),
+                      Text(tr(context, 'Signing in…')),
                     ],
                   )
                 : SpectralSweep(
                     key: const ValueKey('idle'),
-                    child: const Text(
-                      'Sign In',
-                      style: TextStyle(
+                    child: Text(
+                      tr(context, 'Sign In'),
+                      style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -856,7 +861,7 @@ class _SavedLoginTile extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Forget this login',
+                  tooltip: tr(context, 'Forget this login'),
                   onPressed: onForget,
                   icon: Icon(Icons.close, size: 16, color: AppTheme.muted),
                 ),

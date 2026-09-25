@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
 import '../main.dart';
 import '../theme.dart';
 import 'focus_ring.dart';
@@ -31,7 +32,8 @@ class ThemePicker extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                for (final t in tiles) Padding(padding: const EdgeInsets.only(right: 10), child: t),
+                for (final t in tiles)
+                  Padding(padding: const EdgeInsets.only(right: 10), child: t),
               ],
             ),
           );
@@ -148,9 +150,21 @@ class _ThemeTile extends StatelessWidget {
               ),
               const SizedBox(height: 1),
               Text(
-                palette.blurb,
+                switch (palette.id) {
+                  'amber' => tr(context, 'Warm dark, gold and rose'),
+                  'midnight' => tr(context, 'Deep blue, ice accents'),
+                  'oled' => tr(context, 'Pure black, gold leaf'),
+                  'forest' => tr(context, 'Deep green, copper'),
+                  'violet' => tr(context, 'Plum, violet, pink'),
+                  'light' => tr(context, 'Paper white, ink text'),
+                  _ => tr(context, palette.blurb),
+                },
                 maxLines: 2,
-                style: TextStyle(fontSize: 10.5, color: palette.muted, height: 1.3),
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: palette.muted,
+                  height: 1.3,
+                ),
               ),
             ],
           ),

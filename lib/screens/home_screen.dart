@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n.dart';
 import '../main.dart';
 import '../models.dart';
 import '../store.dart';
@@ -33,16 +34,16 @@ Future<void> _showContentSearch(
   return showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Search'),
+      title: Text(tr(dialogContext, 'Search')),
       content: TextField(
         controller: controller,
         focusNode: focus,
         autofocus: true,
         decoration: InputDecoration(
-          hintText: 'Channels, movies, series',
+          hintText: tr(dialogContext, 'Channels, movies, series'),
           prefixIcon: const Icon(Icons.search),
           suffixIcon: IconButton(
-            tooltip: 'Clear search',
+            tooltip: tr(dialogContext, 'Clear search'),
             icon: const Icon(Icons.clear),
             onPressed: () {
               controller.clear();
@@ -56,7 +57,7 @@ Future<void> _showContentSearch(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Done'),
+          child: Text(tr(dialogContext, 'Done')),
         ),
       ],
     ),
@@ -147,7 +148,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             AppMark(size: 22),
             const SizedBox(width: 10),
-            Text(onContent ? _mobileTabs[_mobileIndex].$1 : 'Account'),
+            Text(
+              tr(context, onContent ? _mobileTabs[_mobileIndex].$1 : 'Account'),
+            ),
           ],
         ),
         actions: [
@@ -160,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           if (onContent) ...[
             IconButton(
-              tooltip: 'Search',
+              tooltip: tr(context, 'Search'),
               icon: Icon(
                 appState.search.isEmpty ? Icons.search : Icons.search_off,
               ),
@@ -170,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             PopupMenuButton<String>(
-              tooltip: 'View & refresh',
+              tooltip: tr(context, 'View & refresh'),
               icon: const Icon(Icons.tune),
               onSelected: (choice) {
                 switch (choice) {
@@ -198,19 +201,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   value: 'view',
                   child: Text(
                     appState.viewMode == ViewMode.grid
-                        ? 'List view'
-                        : 'Grid view',
+                        ? tr(context, 'List view')
+                        : tr(context, 'Grid view'),
                   ),
                 ),
                 PopupMenuItem(
                   value: 'density',
                   child: Text(
                     appState.density == Density.compact
-                        ? 'Comfortable spacing'
-                        : 'Compact spacing',
+                        ? tr(context, 'Comfortable spacing')
+                        : tr(context, 'Compact spacing'),
                   ),
                 ),
-                const PopupMenuItem(value: 'reload', child: Text('Reload')),
+                PopupMenuItem(
+                  value: 'reload',
+                  child: Text(tr(context, 'Reload')),
+                ),
               ],
             ),
             const SizedBox(width: 4),
@@ -243,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onDestinationSelected: _selectMobileTab,
         destinations: [
           for (final (label, icon) in _mobileTabs)
-            NavigationDestination(icon: Icon(icon), label: label),
+            NavigationDestination(icon: Icon(icon), label: tr(context, label)),
         ],
       ),
     );
@@ -347,7 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 actions: [
                   if (narrow)
                     IconButton(
-                      tooltip: 'Search',
+                      tooltip: tr(context, 'Search'),
                       icon: Icon(
                         appState.search.isEmpty
                             ? Icons.search
@@ -369,8 +375,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (!narrow)
                     IconButton(
                       tooltip: appState.viewMode == ViewMode.grid
-                          ? 'List view (fits more)'
-                          : 'Grid view',
+                          ? tr(context, 'List view (fits more)')
+                          : tr(context, 'Grid view'),
                       icon: Icon(
                         appState.viewMode == ViewMode.grid
                             ? Icons.view_list_outlined
@@ -385,8 +391,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (!narrow)
                     IconButton(
                       tooltip: appState.density == Density.compact
-                          ? 'Comfortable spacing'
-                          : 'Compact spacing (fits more)',
+                          ? tr(context, 'Comfortable spacing')
+                          : tr(context, 'Compact spacing (fits more)'),
                       icon: Icon(
                         appState.density == Density.compact
                             ? Icons.density_medium
@@ -400,14 +406,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   if (!narrow)
                     IconButton(
-                      tooltip: 'Reload',
+                      tooltip: tr(context, 'Reload'),
                       icon: const Icon(Icons.refresh),
                       onPressed: () =>
                           appState.loadContent(appState.tab, refresh: true),
                     ),
                   if (narrow)
                     PopupMenuButton<String>(
-                      tooltip: 'View & refresh',
+                      tooltip: tr(context, 'View & refresh'),
                       icon: const Icon(Icons.tune),
                       onSelected: (choice) {
                         switch (choice) {
@@ -427,20 +433,23 @@ class _HomeScreenState extends State<HomeScreen> {
                             appState.loadContent(appState.tab, refresh: true);
                         }
                       },
-                      itemBuilder: (_) => const [
+                      itemBuilder: (context) => [
                         PopupMenuItem(
                           value: 'view',
-                          child: Text('Toggle list / grid'),
+                          child: Text(tr(context, 'Toggle list / grid')),
                         ),
                         PopupMenuItem(
                           value: 'density',
-                          child: Text('Toggle spacing'),
+                          child: Text(tr(context, 'Toggle spacing')),
                         ),
-                        PopupMenuItem(value: 'reload', child: Text('Reload')),
+                        PopupMenuItem(
+                          value: 'reload',
+                          child: Text(tr(context, 'Reload')),
+                        ),
                       ],
                     ),
                   IconButton(
-                    tooltip: 'Account & settings',
+                    tooltip: tr(context, 'Account & settings'),
                     icon: const Icon(Icons.settings_outlined),
                     onPressed: () => showSettingsSheet(context),
                   ),
@@ -497,18 +506,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       children: [
                         if (!narrow)
-                          const Expanded(
+                          Expanded(
                             child: KeyHintBar(
                               hints: [
-                                ('↑ ↓ ← →', 'move'),
-                                ('OK / Enter', 'open'),
-                                ('Esc', 'back'),
-                                ('Ctrl+F', 'search'),
+                                ('↑ ↓ ← →', tr(context, 'move')),
+                                ('OK / Enter', tr(context, 'open')),
+                                ('Esc', tr(context, 'back')),
+                                ('Ctrl+F', tr(context, 'search')),
                               ],
                             ),
                           ),
                         Text(
-                          '${appState.visibleItems.length} of ${appState.items.length} items',
+                          tr(context, '{visible} of {total} items', {
+                            'visible': appState.visibleItems.length,
+                            'total': appState.items.length,
+                          }),
                           style: TextStyle(fontSize: 11, color: AppTheme.muted),
                         ),
                       ],
@@ -539,8 +551,14 @@ class _AccountChip extends StatelessWidget {
         border: Border.all(color: AppTheme.border),
       ),
       child: Text(
-        '${account.username} · ${account.expired ? "EXPIRED" : "expires ${account.expiryLabel}"} · '
-        '${account.activeConnections}/${account.maxConnections} conn',
+        tr(context, '{username} · {expiry} · {active}/{max} conn', {
+          'username': account.username,
+          'expiry': account.expired
+              ? tr(context, 'EXPIRED')
+              : tr(context, 'expires {date}', {'date': account.expiryLabel}),
+          'active': account.activeConnections,
+          'max': account.maxConnections,
+        }),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -567,7 +585,7 @@ class _SearchField extends StatelessWidget {
         focusNode: focusNode,
         onChanged: appState.setSearch,
         decoration: InputDecoration(
-          hintText: 'Search…',
+          hintText: tr(context, 'Search…'),
           prefixIcon: Icon(Icons.search, size: 16, color: AppTheme.muted),
           suffixIcon: appState.search.isEmpty
               ? null
@@ -601,7 +619,7 @@ class _CategoryChips extends StatelessWidget {
             FocusTraversalOrder(
               order: const NumericFocusOrder(0),
               child: _CategoryChip(
-                label: 'All',
+                label: tr(context, 'All'),
                 selected: appState.selectedCategoryId == null,
                 onSelect: () => appState.selectCategory(null),
               ),
@@ -668,10 +686,10 @@ class _CategoryChip extends StatelessWidget {
 class _TabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    const labels = {
-      ContentTab.live: ('Live TV', Icons.live_tv_outlined),
-      ContentTab.movies: ('Movies', Icons.movie_outlined),
-      ContentTab.series: ('Series', Icons.video_library_outlined),
+    final labels = {
+      ContentTab.live: (tr(context, 'Live TV'), Icons.live_tv_outlined),
+      ContentTab.movies: (tr(context, 'Movies'), Icons.movie_outlined),
+      ContentTab.series: (tr(context, 'Series'), Icons.video_library_outlined),
     };
     return Container(
       height: 46,
@@ -760,7 +778,7 @@ class _CategoryRail extends StatelessWidget {
             FocusTraversalOrder(
               order: const NumericFocusOrder(0),
               child: _CategoryRow(
-                label: 'All',
+                label: tr(context, 'All'),
                 selected: appState.selectedCategoryId == null,
                 count: appState.items.length,
                 onSelect: () => appState.selectCategory(null),
@@ -780,7 +798,7 @@ class _CategoryRail extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.all(14),
                 child: Text(
-                  'No categories',
+                  tr(context, 'No categories'),
                   style: TextStyle(fontSize: 12, color: AppTheme.muted),
                 ),
               ),
@@ -859,7 +877,7 @@ class _ContentArea extends StatelessWidget {
     if (items.isEmpty) {
       return Center(
         child: Text(
-          'Nothing to show for this category.',
+          tr(context, 'Nothing to show for this category.'),
           style: TextStyle(fontSize: 13, color: AppTheme.muted),
         ),
       );
@@ -878,7 +896,9 @@ class _ContentArea extends StatelessWidget {
               st.selectedCategoryId == null &&
               items.length > 6)
             _FeaturedRow(
-              title: st.tab == ContentTab.live ? 'On now' : 'Featured',
+              title: st.tab == ContentTab.live
+                  ? tr(context, 'On now')
+                  : tr(context, 'Featured'),
               items: items.take(14).toList(),
               onOpen: (item) => _open(context, item),
             ),
@@ -940,7 +960,7 @@ class _GuestChip extends StatelessWidget {
           Icon(Icons.lock_open, size: 12, color: AppTheme.accent),
           SizedBox(width: 5),
           Text(
-            'no login — open panel',
+            tr(context, 'no login — open panel'),
             style: TextStyle(fontSize: 11, color: AppTheme.accent),
           ),
         ],
@@ -1035,7 +1055,10 @@ class _StreamCard extends StatelessWidget {
                     Positioned(
                       left: 6,
                       top: 6,
-                      child: _Pill(label: 'LIVE', color: AppTheme.accent2),
+                      child: _Pill(
+                        label: tr(context, 'LIVE'),
+                        color: AppTheme.accent2,
+                      ),
                     ),
                 ],
               ),
@@ -1066,8 +1089,10 @@ class _StreamCard extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         item.kind == 'series'
-                            ? 'Series'
-                            : (item.kind == 'live' ? 'Live channel' : 'Movie'),
+                            ? tr(context, 'Series')
+                            : (item.kind == 'live'
+                                  ? tr(context, 'Live channel')
+                                  : tr(context, 'Movie')),
                         style: TextStyle(fontSize: 10.5, color: AppTheme.muted),
                       ),
                     ),
@@ -1311,7 +1336,7 @@ class _ErrorPanel extends StatelessWidget {
               FilledButton(
                 onPressed: () =>
                     appState.loadContent(appState.tab, refresh: true),
-                child: const Text('Retry'),
+                child: Text(tr(context, 'Retry')),
               ),
             ],
           ),
@@ -1448,7 +1473,22 @@ class _SeriesSheetState extends State<_SeriesSheet> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            _error!,
+                            switch (_error!) {
+                              'Sign in to load episodes.' => tr(
+                                context,
+                                'Sign in to load episodes.',
+                              ),
+                              'This series has no episodes listed.' => tr(
+                                context,
+                                'This series has no episodes listed.',
+                              ),
+                              'Could not load episodes. Check your connection and retry.' =>
+                                tr(
+                                  context,
+                                  'Could not load episodes. Check your connection and retry.',
+                                ),
+                              final message => message,
+                            },
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: AppTheme.muted,
@@ -1458,7 +1498,7 @@ class _SeriesSheetState extends State<_SeriesSheet> {
                           const SizedBox(height: 12),
                           OutlinedButton(
                             onPressed: _load,
-                            child: const Text('Retry'),
+                            child: Text(tr(context, 'Retry')),
                           ),
                         ],
                       ),
@@ -1542,12 +1582,12 @@ class _ContentToolbar extends StatelessWidget {
             ? Row(
                 children: [
                   IconButton(
-                    tooltip: 'Search',
+                    tooltip: tr(context, 'Search'),
                     icon: const Icon(Icons.search),
                     onPressed: () => _showContentSearch(context, controller),
                   ),
                   PopupMenuButton<String>(
-                    tooltip: 'View, refresh & account',
+                    tooltip: tr(context, 'View, refresh & account'),
                     icon: const Icon(Icons.more_vert),
                     onSelected: (choice) {
                       switch (choice) {
@@ -1569,19 +1609,22 @@ class _ContentToolbar extends StatelessWidget {
                           showSettingsSheet(context);
                       }
                     },
-                    itemBuilder: (_) => const [
+                    itemBuilder: (context) => [
                       PopupMenuItem(
                         value: 'view',
-                        child: Text('Toggle list / grid'),
+                        child: Text(tr(context, 'Toggle list / grid')),
                       ),
                       PopupMenuItem(
                         value: 'density',
-                        child: Text('Toggle spacing'),
+                        child: Text(tr(context, 'Toggle spacing')),
                       ),
-                      PopupMenuItem(value: 'reload', child: Text('Reload')),
+                      PopupMenuItem(
+                        value: 'reload',
+                        child: Text(tr(context, 'Reload')),
+                      ),
                       PopupMenuItem(
                         value: 'account',
-                        child: Text('Account & settings'),
+                        child: Text(tr(context, 'Account & settings')),
                       ),
                     ],
                   ),
@@ -1598,8 +1641,8 @@ class _ContentToolbar extends StatelessWidget {
                   const SizedBox(width: 6),
                   IconButton(
                     tooltip: appState.viewMode == ViewMode.grid
-                        ? 'List view'
-                        : 'Grid view',
+                        ? tr(context, 'List view')
+                        : tr(context, 'Grid view'),
                     icon: Icon(
                       appState.viewMode == ViewMode.grid
                           ? Icons.view_list_outlined
@@ -1613,8 +1656,8 @@ class _ContentToolbar extends StatelessWidget {
                   ),
                   IconButton(
                     tooltip: appState.density == Density.compact
-                        ? 'Comfortable'
-                        : 'Compact',
+                        ? tr(context, 'Comfortable')
+                        : tr(context, 'Compact'),
                     icon: Icon(
                       appState.density == Density.compact
                           ? Icons.density_medium
@@ -1627,13 +1670,13 @@ class _ContentToolbar extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Reload',
+                    tooltip: tr(context, 'Reload'),
                     icon: const Icon(Icons.refresh),
                     onPressed: () =>
                         appState.loadContent(appState.tab, refresh: true),
                   ),
                   IconButton(
-                    tooltip: 'Account & settings',
+                    tooltip: tr(context, 'Account & settings'),
                     icon: const Icon(Icons.settings_outlined),
                     onPressed: () => showSettingsSheet(context),
                   ),
@@ -1668,10 +1711,10 @@ class _SidebarShell extends StatelessWidget {
     // Icon-only rail below ~820 px: a full rail plus a toolbar does not fit.
     final compact = w < 820;
     final width = compact ? 72.0 : 236.0;
-    const items = <(String, IconData, ContentTab)>[
-      ('Live TV', Icons.live_tv_outlined, ContentTab.live),
-      ('Movies', Icons.movie_outlined, ContentTab.movies),
-      ('Series', Icons.video_library_outlined, ContentTab.series),
+    final items = <(String, IconData, ContentTab)>[
+      (tr(context, 'Live TV'), Icons.live_tv_outlined, ContentTab.live),
+      (tr(context, 'Movies'), Icons.movie_outlined, ContentTab.movies),
+      (tr(context, 'Series'), Icons.video_library_outlined, ContentTab.series),
     ];
     return Scaffold(
       body: Row(
@@ -1717,7 +1760,7 @@ class _SidebarShell extends StatelessWidget {
                     onTap: () => appState.setTab(tab),
                   ),
                 _SidebarItem(
-                  label: 'Account',
+                  label: tr(context, 'Account'),
                   icon: Icons.person_outline,
                   compact: compact,
                   selected: false,
@@ -1909,20 +1952,20 @@ class _ShowcaseShell extends StatelessWidget {
                     const SizedBox(width: 4),
                   ] else
                     IconButton(
-                      tooltip: 'Search',
+                      tooltip: tr(context, 'Search'),
                       icon: const Icon(Icons.search),
                       onPressed: () =>
                           _showContentSearch(context, searchController),
                     ),
                   if (w >= 420)
                     IconButton(
-                      tooltip: 'Reload',
+                      tooltip: tr(context, 'Reload'),
                       icon: const Icon(Icons.refresh),
                       onPressed: () =>
                           appState.loadContent(appState.tab, refresh: true),
                     ),
                   IconButton(
-                    tooltip: 'Account & settings',
+                    tooltip: tr(context, 'Account & settings'),
                     icon: const Icon(Icons.settings_outlined),
                     onPressed: () => showSettingsSheet(context),
                   ),
@@ -1960,10 +2003,10 @@ class _NavPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = <(String, IconData, ContentTab)>[
-      ('Live', Icons.live_tv_outlined, ContentTab.live),
-      ('Movies', Icons.movie_outlined, ContentTab.movies),
-      ('Series', Icons.video_library_outlined, ContentTab.series),
+    final items = <(String, IconData, ContentTab)>[
+      (tr(context, 'Live'), Icons.live_tv_outlined, ContentTab.live),
+      (tr(context, 'Movies'), Icons.movie_outlined, ContentTab.movies),
+      (tr(context, 'Series'), Icons.video_library_outlined, ContentTab.series),
     ];
     return Wrap(
       spacing: 6,
@@ -2121,7 +2164,9 @@ class _HeroBanner extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        appState.tab == ContentTab.live ? 'ON NOW' : 'FEATURED',
+                        appState.tab == ContentTab.live
+                            ? tr(context, 'ON NOW')
+                            : tr(context, 'FEATURED'),
                         style: TextStyle(
                           fontSize: 11,
                           letterSpacing: 1.6,
@@ -2158,11 +2203,11 @@ class _HeroBanner extends StatelessWidget {
                       FilledButton.icon(
                         onPressed: onPlay,
                         icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                        label: const Text('Play'),
+                        label: Text(tr(context, 'Play')),
                       ),
                       OutlinedButton(
                         onPressed: onBrowse,
-                        child: const Text('Browse all'),
+                        child: Text(tr(context, 'Browse all')),
                       ),
                     ],
                   ),
@@ -2191,7 +2236,7 @@ class _CategoryRails extends StatelessWidget {
       return Center(
         child: appState.busy
             ? const CircularProgressIndicator()
-            : Text(appState.error ?? 'No titles match this view'),
+            : Text(appState.error ?? tr(context, 'No titles match this view')),
       );
     }
     // Every item stays reachable: a shelf scrolls lazily, including sparse
@@ -2206,7 +2251,10 @@ class _CategoryRails extends StatelessWidget {
         .where((i) => !knownIds.contains(i.categoryId))
         .toList();
     if (uncategorized.isNotEmpty) {
-      rails.add((cats.isEmpty ? 'All titles' : 'Other', uncategorized));
+      rails.add((
+        cats.isEmpty ? tr(context, 'All titles') : tr(context, 'Other'),
+        uncategorized,
+      ));
     }
     return ListView(
       padding: const EdgeInsets.only(bottom: 14),
@@ -2311,7 +2359,7 @@ class _DashboardShellState extends State<_DashboardShell> {
                       children: [
                         if (_entered)
                           IconButton(
-                            tooltip: 'Back to sections',
+                            tooltip: tr(context, 'Back to sections'),
                             icon: const Icon(Icons.arrow_back),
                             onPressed: _leaveSection,
                           )
@@ -2320,7 +2368,9 @@ class _DashboardShellState extends State<_DashboardShell> {
                         const SizedBox(width: 10),
                         if (!widget.narrow) ...[
                           Text(
-                            _entered ? appState.tabLabel : 'Spectre',
+                            _entered
+                                ? tr(context, appState.tabLabel)
+                                : 'Spectre',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -2338,7 +2388,7 @@ class _DashboardShellState extends State<_DashboardShell> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'Account & settings',
+                          tooltip: tr(context, 'Account & settings'),
                           icon: const Icon(Icons.settings_outlined),
                           onPressed: () => showSettingsSheet(context),
                         ),
@@ -2395,24 +2445,24 @@ class _DashboardTiles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tiles = <(String, IconData, ContentTab, String)>[
+    final tiles = <(String, IconData, ContentTab, String)>[
       (
-        'Live TV',
+        tr(context, 'Live TV'),
         Icons.live_tv_outlined,
         ContentTab.live,
-        'Channels, now and next',
+        tr(context, 'Channels, now and next'),
       ),
       (
-        'Movies',
+        tr(context, 'Movies'),
         Icons.movie_outlined,
         ContentTab.movies,
-        'The on-demand library',
+        tr(context, 'The on-demand library'),
       ),
       (
-        'Series',
+        tr(context, 'Series'),
         Icons.video_library_outlined,
         ContentTab.series,
-        'Seasons and episodes',
+        tr(context, 'Seasons and episodes'),
       ),
     ];
     return ListView(
@@ -2564,7 +2614,12 @@ class _SectionTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          count == null ? blurb : '$count  ·  $blurb',
+                          count == null
+                              ? blurb
+                              : tr(context, '{count}  ·  {description}', {
+                                  'count': count,
+                                  'description': blurb,
+                                }),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 12, color: AppTheme.muted),
@@ -2776,13 +2831,13 @@ class _CinemaShell extends StatelessWidget {
                       _NavPills(labels: width >= 950),
                       const Spacer(),
                       IconButton(
-                        tooltip: 'Search',
+                        tooltip: tr(context, 'Search'),
                         icon: const Icon(Icons.search),
                         onPressed: () =>
                             _showContentSearch(context, searchController),
                       ),
                       IconButton(
-                        tooltip: 'Account & settings',
+                        tooltip: tr(context, 'Account & settings'),
                         icon: const Icon(Icons.settings_outlined),
                         onPressed: () => showSettingsSheet(context),
                       ),
@@ -2809,8 +2864,8 @@ class _CinemaShell extends StatelessWidget {
                                   children: [
                                     Text(
                                       appState.tab == ContentTab.live
-                                          ? 'ON NOW'
-                                          : 'FEATURED',
+                                          ? tr(context, 'ON NOW')
+                                          : tr(context, 'FEATURED'),
                                       style: TextStyle(
                                         fontSize: 11,
                                         letterSpacing: 1.8,
@@ -2841,12 +2896,14 @@ class _CinemaShell extends StatelessWidget {
                                             Icons.play_arrow_rounded,
                                             size: 20,
                                           ),
-                                          label: const Text('Play'),
+                                          label: Text(tr(context, 'Play')),
                                         ),
                                         OutlinedButton(
                                           onPressed: () =>
                                               appState.selectCategory(null),
-                                          child: const Text('Browse all'),
+                                          child: Text(
+                                            tr(context, 'Browse all'),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -2928,7 +2985,7 @@ class _MasterDetailShell extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     children: [
                       _MasterRow(
-                        label: 'All',
+                        label: tr(context, 'All'),
                         count: appState.items.length,
                         selected: appState.selectedCategoryId == null,
                         onTap: () => appState.selectCategory(null),
@@ -2975,10 +3032,10 @@ class _MasterTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = <(String, IconData, ContentTab)>[
-      ('Live TV', Icons.live_tv_outlined, ContentTab.live),
-      ('Movies', Icons.movie_outlined, ContentTab.movies),
-      ('Series', Icons.video_library_outlined, ContentTab.series),
+    final items = <(String, IconData, ContentTab)>[
+      (tr(context, 'Live TV'), Icons.live_tv_outlined, ContentTab.live),
+      (tr(context, 'Movies'), Icons.movie_outlined, ContentTab.movies),
+      (tr(context, 'Series'), Icons.video_library_outlined, ContentTab.series),
     ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
