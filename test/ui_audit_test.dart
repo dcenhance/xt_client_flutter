@@ -47,6 +47,46 @@ void main() {
     expect(find.text('Outside category'), findsOneWidget);
   });
 
+  for (final width in [320.0, 360.0, 1280.0]) {
+    testWidgets('Showcase banner scrolls away at ${width.toInt()} dp', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, width >= 900 ? 720 : 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      appState.layout = LayoutStyle.showcase;
+      appState.tab = ContentTab.movies;
+      appState.categories = [
+        for (var i = 0; i < 5; i++) Category(id: '$i', name: 'Shelf $i'),
+      ];
+      appState.items = [
+        for (var i = 0; i < 5; i++)
+          StreamItem(
+            id: '$i',
+            name: 'Film $i',
+            kind: 'movie',
+            categoryId: '$i',
+          ),
+      ];
+      await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+      expect(find.text('FEATURED'), findsOneWidget);
+      final navTop = tester.getTopLeft(find.byTooltip('Account & settings')).dy;
+      await tester.drag(find.byType(ListView).first, const Offset(0, -550));
+      await tester.pumpAndSettle();
+      final banner = find.text('FEATURED');
+      expect(
+        banner.evaluate().isEmpty || tester.getTopLeft(banner).dy < 0,
+        isTrue,
+        reason: 'The banner must leave the viewport rather than stay above the scrolling shelves',
+      );
+      expect(
+        tester.getTopLeft(find.byTooltip('Account & settings')).dy,
+        navTop,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('Guide reaches channel 121 and uncategorized channels', (
     tester,
   ) async {

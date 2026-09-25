@@ -1944,16 +1944,21 @@ class _ShowcaseShell extends StatelessWidget {
                 ],
               ),
             ),
-            if (hero != null && appState.error == null)
-              SizedBox(
-                height: narrow ? 210 : 250,
-                child: _HeroBanner(
-                  item: hero,
-                  onPlay: () => onOpen(context, hero),
-                  onBrowse: () => appState.selectCategory(null),
-                ),
+            Expanded(
+              child: _CategoryRails(
+                onOpen: onOpen,
+                header: hero != null && appState.error == null
+                    ? SizedBox(
+                        height: narrow ? 240 : 250,
+                        child: _HeroBanner(
+                          item: hero,
+                          onPlay: () => onOpen(context, hero),
+                          onBrowse: () => appState.selectCategory(null),
+                        ),
+                      )
+                    : null,
               ),
-            Expanded(child: _CategoryRails(onOpen: onOpen)),
+            ),
             if (appState.busy) const LinearProgressIndicator(minHeight: 2),
           ],
         ),
@@ -2161,14 +2166,15 @@ class _HeroBanner extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 14),
-                  Row(
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
                     children: [
                       FilledButton.icon(
                         onPressed: onPlay,
                         icon: const Icon(Icons.play_arrow_rounded, size: 20),
                         label: const Text('Play'),
                       ),
-                      const SizedBox(width: 10),
                       OutlinedButton(
                         onPressed: onBrowse,
                         child: const Text('Browse all'),
@@ -2187,9 +2193,10 @@ class _HeroBanner extends StatelessWidget {
 
 /// Below the hero: one horizontal rail per category, like a streaming shelf.
 class _CategoryRails extends StatelessWidget {
-  const _CategoryRails({required this.onOpen});
+  const _CategoryRails({required this.onOpen, this.header});
 
   final void Function(BuildContext, StreamItem) onOpen;
+  final Widget? header;
 
   @override
   Widget build(BuildContext context) {
@@ -2219,6 +2226,7 @@ class _CategoryRails extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 14),
       children: [
+        ?header,
         for (final (title, list) in rails)
           _FeaturedRow(
             title: title,
