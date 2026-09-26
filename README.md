@@ -96,6 +96,10 @@ An old saved **Guide** selection migrates to **Classic** on launch.
 
 Each tile in the picker draws a miniature wireframe of the shell it applies.
 
+The **Dashboard** overview has no tab of its own, so its search box searches every section at once
+and lists the matches with a count — clearing the query brings the section tiles back. Inside a
+section the same box filters that section, as everywhere else.
+
 ### Themes
 
 Six palettes ship in the app, switchable live under **Account → Theme** and kept between sessions:

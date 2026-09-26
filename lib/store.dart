@@ -165,6 +165,27 @@ class AppState extends ChangeNotifier {
   /// How much is in a tab, or null while it has never been loaded.
   int? countFor(ContentTab t) => _cache[t]?.length;
 
+  /// Every entry of a tab the app already holds. The visible tab falls back to
+  /// [items] so a freshly loaded catalogue is searchable before its cache
+  /// entry settles.
+  List<StreamItem> itemsFor(ContentTab t) =>
+      _cache[t] ?? (t == tab ? items : const []);
+
+  /// Entries matching [search] across every section. The Dashboard overview
+  /// shows no tab of its own, so its search field cannot filter one list.
+  List<StreamItem> get searchMatches {
+    final q = search.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    return [
+      for (final t in ContentTab.values)
+        ...itemsFor(t).where((i) => i.name.toLowerCase().contains(q)),
+    ];
+  }
+
+  /// How many entries the search is drawn from — the denominator of its count.
+  int get searchableCount =>
+      ContentTab.values.fold(0, (sum, t) => sum + itemsFor(t).length);
+
   bool loadingFor(ContentTab t) => _preloading.contains(t);
 
   final Set<ContentTab> _preloading = {};

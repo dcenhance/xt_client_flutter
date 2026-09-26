@@ -2397,17 +2397,30 @@ class _DashboardShellState extends State<_DashboardShell> {
                   ),
                   Expanded(
                     child: !_entered
-                        ? _DashboardTiles(
-                            narrow: widget.narrow,
-                            focusNodes: _tileFocus,
-                            onEnter: (tab) {
-                              appState.setTab(tab);
-                              setState(() => _entered = true);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) _sectionFocus.requestFocus();
-                              });
-                            },
-                          )
+                        // The overview has no tab of its own, so its search
+                        // field searches every section instead of filtering
+                        // tiles it cannot show results in.
+                        ? (appState.search.trim().isEmpty
+                              ? _DashboardTiles(
+                                  narrow: widget.narrow,
+                                  focusNodes: _tileFocus,
+                                  onEnter: (tab) {
+                                    appState.setTab(tab);
+                                    setState(() => _entered = true);
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            _sectionFocus.requestFocus();
+                                          }
+                                        });
+                                  },
+                                )
+                              : _DashboardResults(
+                                  matches: appState.searchMatches,
+                                  total: appState.searchableCount,
+                                  onOpen: (context, item) =>
+                                      widget.onOpen(context, item),
+                                ))
                         : Column(
                             children: [
                               _CategoryChips(),
@@ -2428,6 +2441,69 @@ class _DashboardShellState extends State<_DashboardShell> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Search results for the Dashboard overview. Every section at once, because
+/// the overview itself has no tab whose list could be filtered.
+class _DashboardResults extends StatelessWidget {
+  const _DashboardResults({
+    required this.matches,
+    required this.total,
+    required this.onOpen,
+  });
+
+  final List<StreamItem> matches;
+  final int total;
+  final void Function(BuildContext, StreamItem) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (matches.isEmpty) {
+      return Center(
+        child: Text(
+          tr(context, 'No titles match this view'),
+          style: TextStyle(fontSize: 13, color: AppTheme.muted),
+        ),
+      );
+    }
+    final compact = appState.density == Density.compact;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+          child: Text(
+            tr(context, '{visible} of {total} items', {
+              'visible': matches.length,
+              'total': total,
+            }),
+            style: TextStyle(fontSize: 12, color: AppTheme.muted),
+          ),
+        ),
+        Expanded(
+          child: FocusTraversalGroup(
+            policy: ReadingOrderTraversalPolicy(),
+            child: GridView.builder(
+              padding: EdgeInsets.all(compact ? 8 : 14),
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: compact ? 146 : 190,
+                childAspectRatio: compact ? 1.02 : 0.78,
+                mainAxisSpacing: compact ? 7 : 12,
+                crossAxisSpacing: compact ? 7 : 12,
+              ),
+              itemCount: matches.length,
+              itemBuilder: (context, i) => _StreamCard(
+                item: matches[i],
+                compact: compact,
+                // Never autofocus: the query is still being typed above.
+                onSelect: () => onOpen(context, matches[i]),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
