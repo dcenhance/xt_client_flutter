@@ -2418,6 +2418,11 @@ class _DashboardShellState extends State<_DashboardShell> {
                               : _DashboardResults(
                                   matches: appState.searchMatches,
                                   total: appState.searchableCount,
+                                  loading:
+                                      appState.busy ||
+                                      ContentTab.values.any(
+                                        appState.loadingFor,
+                                      ),
                                   onOpen: (context, item) =>
                                       widget.onOpen(context, item),
                                 ))
@@ -2451,21 +2456,25 @@ class _DashboardResults extends StatelessWidget {
   const _DashboardResults({
     required this.matches,
     required this.total,
+    required this.loading,
     required this.onOpen,
   });
 
   final List<StreamItem> matches;
   final int total;
+  final bool loading;
   final void Function(BuildContext, StreamItem) onOpen;
 
   @override
   Widget build(BuildContext context) {
     if (matches.isEmpty) {
       return Center(
-        child: Text(
-          tr(context, 'No titles match this view'),
-          style: TextStyle(fontSize: 13, color: AppTheme.muted),
-        ),
+        child: loading
+            ? const CircularProgressIndicator()
+            : Text(
+                tr(context, 'No titles match this view'),
+                style: TextStyle(fontSize: 13, color: AppTheme.muted),
+              ),
       );
     }
     final compact = appState.density == Density.compact;
@@ -2474,12 +2483,24 @@ class _DashboardResults extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
-          child: Text(
-            tr(context, '{visible} of {total} items', {
-              'visible': matches.length,
-              'total': total,
-            }),
-            style: TextStyle(fontSize: 12, color: AppTheme.muted),
+          child: Row(
+            children: [
+              Text(
+                tr(context, '{visible} of {total} items', {
+                  'visible': matches.length,
+                  'total': total,
+                }),
+                style: TextStyle(fontSize: 12, color: AppTheme.muted),
+              ),
+              if (loading) ...[
+                const SizedBox(width: 10),
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ],
+            ],
           ),
         ),
         Expanded(

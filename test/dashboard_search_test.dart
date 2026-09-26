@@ -1,20 +1,103 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xtream_player/main.dart';
 import 'package:xtream_player/models.dart';
 import 'package:xtream_player/screens/home_screen.dart';
 import 'package:xtream_player/store.dart';
+import 'package:xtream_player/xtream_client.dart';
+
+class _SlowCatalogue extends XtreamClient {
+  _SlowCatalogue({this.liveItems = const []})
+    : super(
+        server: 'http://example.invalid',
+        username: 'test',
+        password: 'test',
+      );
+
+  final List<StreamItem> liveItems;
+  final movieStreams = Completer<List<StreamItem>>();
+
+  @override
+  Future<List<Category>> liveCategories() async => const [];
+  @override
+  Future<List<Category>> vodCategories() async => const [];
+  @override
+  Future<List<Category>> seriesCategories() async => const [];
+  @override
+  Future<List<StreamItem>> liveStreams({String? categoryId}) async => liveItems;
+  @override
+  Future<List<StreamItem>> vodStreams({String? categoryId}) =>
+      movieStreams.future;
+  @override
+  Future<List<StreamItem>> series({String? categoryId}) async => const [];
+}
 
 /// The Dashboard overview ("Übersicht") shows section tiles, not a tab list.
 /// Its search field is always visible, so a typed query has to produce real
 /// results instead of silently changing state nothing reads.
 void main() {
-  tearDown(() {
+  setUp(() async {
+    await appState.logout();
+    appState.setSearch('');
+  });
+  tearDown(() async {
+    await appState.logout();
     appState.categories = const [];
     appState.items = const [];
     appState.tab = ContentTab.live;
     appState.setSearch('');
     appState.layout = LayoutStyle.classic;
+    appState.client = null;
+  });
+
+  testWidgets(
+    'search waits for pending sections instead of claiming no matches',
+    (tester) async {
+      final catalogue = _SlowCatalogue();
+      appState.client = catalogue;
+      appState.layout = LayoutStyle.dashboard;
+      await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+      await tester.pump();
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'nature');
+      await tester.pump();
+      expect(find.text('No titles match this view'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      catalogue.movieStreams.complete([
+        StreamItem(id: 'nature', name: 'Nature One', kind: 'movie'),
+      ]);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Nature One'), findsWidgets);
+      expect(find.text('No titles match this view'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    },
+  );
+
+  testWidgets('matching titles remain visible while another section loads', (
+    tester,
+  ) async {
+    final catalogue = _SlowCatalogue(
+      liveItems: [StreamItem(id: 'live', name: 'Nature Live', kind: 'live')],
+    );
+    appState.client = catalogue;
+    appState.layout = LayoutStyle.dashboard;
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+    await tester.pump();
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'nature');
+    await tester.pump();
+    expect(find.text('Nature Live'), findsWidgets);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    catalogue.movieStreams.complete(const []);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Nature Live'), findsWidgets);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   for (final width in [320.0, 1280.0]) {
