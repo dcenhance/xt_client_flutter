@@ -23,18 +23,20 @@ Future<HttpServer> panel({required bool accepts}) async {
     final action = request.uri.queryParameters['action'] ?? '';
     request.response.headers.contentType = ContentType.json;
     if (action.isEmpty) {
-      request.response.write(jsonEncode({
-        'user_info': {
-          'auth': accepts ? 1 : 0,
-          'username': 'u',
-          'status': 'Active',
-          'exp_date': '2000000000',
-          'max_connections': '2',
-          'active_cons': '1',
-          'allowed_output_formats': ['m3u8'],
-        },
-        'server_info': {'url': '127.0.0.1', 'port': '${server.port}'},
-      }));
+      request.response.write(
+        jsonEncode({
+          'user_info': {
+            'auth': accepts ? 1 : 0,
+            'username': 'u',
+            'status': 'Active',
+            'exp_date': '2000000000',
+            'max_connections': '2',
+            'active_cons': '1',
+            'allowed_output_formats': ['m3u8'],
+          },
+          'server_info': {'url': '127.0.0.1', 'port': '${server.port}'},
+        }),
+      );
     } else {
       request.response.write(jsonEncode([]));
     }
@@ -44,50 +46,124 @@ Future<HttpServer> panel({required bool accepts}) async {
 }
 
 void main() {
-  test('with no server typed, the first panel that accepts the login wins', () async {
-    final dead = await panel(accepts: false);
-    final good = await panel(accepts: true);
+  test(
+    'with no server typed, the first panel that accepts the login wins',
+    () async {
+      final dead = await panel(accepts: false);
+      final good = await panel(accepts: true);
 
-    final state = _DiscoveringState([
-      'http://127.0.0.1:${dead.port}',
-      'http://127.0.0.1:${good.port}',
-    ]);
+      final state = _DiscoveringState([
+        'http://127.0.0.1:${dead.port}',
+        'http://127.0.0.1:${good.port}',
+      ]);
 
-    final ok = await state.signIn(username: 'u', password: 'p');
+      final ok = await state.signIn(username: 'u', password: 'p');
 
-    expect(ok, isTrue);
-    expect(state.account, isNotNull);
-    expect(state.server, 'http://127.0.0.1:${good.port}');
-    // The panel that worked is remembered for next time, in front.
-    expect(state.workingServers.first, 'http://127.0.0.1:${good.port}');
-    expect(state.discoveryNote, isNull);
+      expect(ok, isTrue);
+      expect(state.account, isNotNull);
+      expect(state.server, 'http://127.0.0.1:${good.port}');
+      // The panel that worked is remembered for next time, in front.
+      expect(state.workingServers.first, 'http://127.0.0.1:${good.port}');
+      expect(state.discoveryNote, isNull);
 
-    await dead.close(force: true);
-    await good.close(force: true);
-  }, timeout: const Timeout(Duration(seconds: 60)));
+      await dead.close(force: true);
+      await good.close(force: true);
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
 
-  test('candidates start with the remembered panels and cover every preset', () {
-    final state = AppState()
-      ..workingServers = ['http://remembered.example:8080']
-      ..logins = [
-        SavedLogin(
-          server: 'http://account.example:8080',
+  test('switchPanel fails on a rejecting panel without falling back or logging out', () async {
+    final original = await panel(accepts: true);
+    final rejecting = await panel(accepts: false);
+    final state = AppState();
+    try {
+      expect(
+        await state.signIn(
           username: 'u',
           password: 'p',
-          label: '',
+          server: 'http://127.0.0.1:${original.port}',
         ),
-      ];
-
-    final list = state.candidatesFor();
-
-    expect(list.first, 'http://remembered.example:8080');
-    for (final p in kPanelPresets) {
-      expect(list, contains(XtreamClient.normaliseServer(p.url)));
+        isTrue,
+      );
+      final originalClient = state.client;
+      expect(
+        await state.switchPanel('http://127.0.0.1:${rejecting.port}'),
+        isFalse,
+      );
+      expect(state.server, 'http://127.0.0.1:${original.port}');
+      expect(state.client, same(originalClient));
+      expect(state.loggedIn, isTrue);
+    } finally {
+      await original.close(force: true);
+      await rejecting.close(force: true);
     }
-    // A typed address is tried before anything the app remembers.
-    expect(state.candidatesFor(preferred: 'typed.example:99').first,
-        'http://typed.example:99');
   });
+
+  test(
+    'a failed saved account change leaves the active session usable',
+    () async {
+      final original = await panel(accepts: true);
+      final rejecting = await panel(accepts: false);
+      final state = AppState();
+      try {
+        expect(
+          await state.signIn(
+            username: 'u',
+            password: 'p',
+            server: 'http://127.0.0.1:${original.port}',
+          ),
+          isTrue,
+        );
+        final originalClient = state.client;
+        expect(
+          await state.resumeLogin(
+            SavedLogin(
+              server: 'http://127.0.0.1:${rejecting.port}',
+              username: 'other',
+              password: 'p2',
+              label: '',
+            ),
+          ),
+          isFalse,
+        );
+        expect(state.server, 'http://127.0.0.1:${original.port}');
+        expect(state.username, 'u');
+        expect(state.client, same(originalClient));
+        expect(state.loggedIn, isTrue);
+      } finally {
+        await original.close(force: true);
+        await rejecting.close(force: true);
+      }
+    },
+  );
+
+  test(
+    'candidates start with the remembered panels and cover every preset',
+    () {
+      final state = AppState()
+        ..workingServers = ['http://remembered.example:8080']
+        ..logins = [
+          SavedLogin(
+            server: 'http://account.example:8080',
+            username: 'u',
+            password: 'p',
+            label: '',
+          ),
+        ];
+
+      final list = state.candidatesFor();
+
+      expect(list.first, 'http://remembered.example:8080');
+      for (final p in kPanelPresets) {
+        expect(list, contains(XtreamClient.normaliseServer(p.url)));
+      }
+      // A typed address is tried before anything the app remembers.
+      expect(
+        state.candidatesFor(preferred: 'typed.example:99').first,
+        'http://typed.example:99',
+      );
+    },
+  );
 
   test('a remembered login carries the panel name for the UI', () {
     final l = SavedLogin(

@@ -53,7 +53,7 @@ class XtreamException implements Exception {
         );
       case XtreamErrorKind.tlsMismatch:
         return trCurrent(
-          'That port speaks plain HTTP, not TLS — drop the https:// (Xtream panels are normally http://host:8080). The app already retries over http, so reaching this message means the http attempt failed too.',
+          'The TLS connection failed. Check the HTTPS address and certificate. If the provider confirms this is a plain-HTTP panel, enter its http:// address explicitly; the app will not send your password over HTTP after an HTTPS failure.',
         );
       case XtreamErrorKind.deadDns:
         return trCurrent(
@@ -70,7 +70,7 @@ class XtreamException implements Exception {
           );
         }
         return trCurrent(
-          'The panel answered with HTTP {statusCode} but not with playlist JSON. Many panels use 401/403/511/512 for "not allowed from this IP" or "bad credentials".',
+          'The panel answered with HTTP {statusCode}. Many panels use 401/403/511/512 for "not allowed from this IP" or "bad credentials".',
           {'statusCode': statusCode},
         );
       case XtreamErrorKind.rejected:
@@ -226,10 +226,9 @@ class XtreamClient {
   /// asking the system resolver.
   final List<String>? resolvedAddressesOverride;
 
-  /// The base URL that actually worked, when it differs from what was typed
-  /// (e.g. the user typed https:// and the panel only speaks http://).
-  String? _effectiveServer;
-  String get effectiveServer => _effectiveServer ?? server;
+  /// Never change schemes implicitly: a failed TLS handshake (including a
+  /// certificate failure) is not permission to transmit credentials via HTTP.
+  String get effectiveServer => server;
 
   bool get isHttps => server.startsWith('https://');
 
@@ -277,8 +276,7 @@ class XtreamClient {
     }
   }
 
-  /// Public JSON fetch used by [probeAnonymous]; goes through the same
-  /// scheme-fallback path as the real API calls, and validates the address
+  /// Public JSON fetch used by [probeAnonymous]; validates the address
   /// first so a typo shows up as a readable error instead of a raw
   /// FormatException.
   Future<dynamic> getJsonForProbe(Uri uri) {
@@ -286,21 +284,7 @@ class XtreamClient {
     return _getJson(uri);
   }
 
-  Future<dynamic> _getJson(Uri uri) async {
-    try {
-      return await _getJsonRaw(uri);
-    } on XtreamException catch (e) {
-      // https:// to a plain-HTTP panel: retry the same host and port over http
-      // instead of telling the user the host is dead.
-      if (e.kind == XtreamErrorKind.tlsMismatch && uri.scheme == 'https') {
-        final retry = uri.replace(scheme: 'http');
-        final result = await _getJsonRaw(retry);
-        _effectiveServer = 'http://${uri.host}:${uri.port}';
-        return result;
-      }
-      rethrow;
-    }
-  }
+  Future<dynamic> _getJson(Uri uri) => _getJsonRaw(uri);
 
   /// Resolves the host and returns a placeholder address if there is one,
   /// otherwise null. Never throws.
@@ -322,10 +306,16 @@ class XtreamClient {
 
   Future<dynamic> _getJsonRaw(Uri uri) async {
     http.Response res;
+    final transport = http.Client();
     try {
-      res = await http
-          .get(uri, headers: {'User-Agent': 'XtreamPlayer/0.1 (Flutter)'})
-          .timeout(_timeout);
+      // The convenience http.get follows redirects by default, including
+      // HTTPS -> HTTP and cross-origin hops carrying URL credentials. Keep
+      // control of the request and reject all redirects instead.
+      final request = http.Request('GET', uri)
+        ..followRedirects = false
+        ..headers['User-Agent'] = 'XtreamPlayer/0.1 (Flutter)';
+      final response = await transport.send(request).timeout(_timeout);
+      res = await http.Response.fromStream(response).timeout(_timeout);
     } on TimeoutException {
       throw XtreamException(
         XtreamErrorKind.unreachable,
@@ -385,9 +375,32 @@ class XtreamClient {
           'reason': text,
         }),
       );
+    } finally {
+      transport.close();
     }
 
     final body = res.body.trim();
+    // HTTP status takes precedence over even a valid-looking JSON account.
+    // Reject redirects too: following them could disclose credentials to an
+    // unrelated host or downgrade a requested HTTPS connection to HTTP.
+    if (res.statusCode >= 300) {
+      final looksCloudflareDns =
+          body.contains('error code: 1034') || body.contains('Error 1034');
+      throw XtreamException(
+        XtreamErrorKind.http,
+        looksCloudflareDns
+            ? trCurrent(
+                'Cloudflare could not reach the origin ({server}): error code 1034',
+                {'server': server},
+              )
+            : trCurrent('HTTP {statusCode} from {server}', {
+                'statusCode': res.statusCode,
+                'server': server,
+              }),
+        statusCode: res.statusCode,
+        body: body,
+      );
+    }
     final looksJson = body.startsWith('{') || body.startsWith('[');
     if (!looksJson) {
       // A TLS server answering an http:// request sends a binary record header.
@@ -400,26 +413,13 @@ class XtreamClient {
           }),
         );
       }
-      final looksCloudflareDns =
-          body.contains('error code: 1034') || body.contains('Error 1034');
-      if (looksCloudflareDns) {
+      if (body.contains('error code: 1034') || body.contains('Error 1034')) {
         throw XtreamException(
           XtreamErrorKind.http,
           trCurrent(
             'Cloudflare could not reach the origin ({server}): error code 1034',
             {'server': server},
           ),
-          statusCode: res.statusCode,
-          body: body,
-        );
-      }
-      if (res.statusCode >= 400) {
-        throw XtreamException(
-          XtreamErrorKind.http,
-          trCurrent('HTTP {statusCode} from {server}', {
-            'statusCode': res.statusCode,
-            'server': server,
-          }),
           statusCode: res.statusCode,
           body: body,
         );
@@ -574,14 +574,18 @@ class XtreamClient {
 
   String liveUrl(StreamItem item, {String? extension}) {
     final ext = extension ?? 'ts';
-    return '$effectiveServer/live/$username/$password/${item.id}.$ext';
+    return _streamUrl('live', item.id, ext);
   }
 
   String vodUrl(StreamItem item) =>
-      '$effectiveServer/movie/$username/$password/${item.id}.${item.containerExtension ?? 'mp4'}';
+      _streamUrl('movie', item.id, item.containerExtension ?? 'mp4');
 
   String seriesEpisodeUrl(String episodeId, String extension) =>
-      '$effectiveServer/series/$username/$password/$episodeId.$extension';
+      _streamUrl('series', episodeId, extension);
+
+  String _streamUrl(String kind, String id, String extension) =>
+      '$effectiveServer/$kind/${Uri.encodeComponent(username)}/'
+      '${Uri.encodeComponent(password)}/${Uri.encodeComponent('$id.$extension')}';
 
   /// Series episodes need one extra call: action=get_series_info&series_id=..
   Future<List<StreamItem>> seriesEpisodes(StreamItem series) async {
@@ -617,8 +621,18 @@ class XtreamClient {
   }
 
   String playlistUrl({bool hls = false}) =>
-      '$effectiveServer/get.php?username=$username&password=$password&type=m3u_plus&output=${hls ? 'm3u8' : 'ts'}';
+      Uri.parse('$effectiveServer/get.php')
+          .replace(
+            queryParameters: {
+              'username': username,
+              'password': password,
+              'type': 'm3u_plus',
+              'output': hls ? 'm3u8' : 'ts',
+            },
+          )
+          .toString();
 
-  String epgUrl() =>
-      '$effectiveServer/xmltv.php?username=$username&password=$password';
+  String epgUrl() => Uri.parse('$effectiveServer/xmltv.php')
+      .replace(queryParameters: {'username': username, 'password': password})
+      .toString();
 }

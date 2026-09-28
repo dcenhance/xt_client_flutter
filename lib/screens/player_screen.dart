@@ -11,6 +11,70 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets/player_chrome.dart';
 
+/// One opening attempt for one player/channel. A failed HLS stream may try TS
+/// once; errors from a retired attempt must not affect its successor.
+class PlaybackOpening {
+  const PlaybackOpening({required this.errors, required this.open});
+
+  final Stream<String> errors;
+  final Future<void> Function(String url) open;
+}
+
+class LivePlaybackAttempt {
+  LivePlaybackAttempt({
+    required this.primary,
+    this.fallback,
+    required this.onFailure,
+  });
+
+  final PlaybackOpening primary;
+  final PlaybackOpening Function()? fallback;
+  final void Function(String error) onFailure;
+  StreamSubscription<String>? _subscription;
+  String? _fallbackUrl;
+  bool _active = true;
+  bool _fallbackStarted = false;
+  bool _terminal = false;
+
+  Future<void> start(String url, {String? fallbackUrl}) async {
+    _fallbackUrl = fallbackUrl;
+    _subscription = primary.errors.listen((e) => _fail(e, primary: true));
+    try {
+      await primary.open(url);
+    } catch (e) {
+      _fail('$e', primary: true);
+    }
+  }
+
+  void _fail(String error, {required bool primary}) {
+    if (!_active || _terminal || (primary && _fallbackStarted)) return;
+    final fallbackUrl = _fallbackUrl;
+    if (primary && fallbackUrl != null && fallback != null) {
+      _fallbackStarted = true;
+      _subscription?.cancel();
+      // The TS player has a separate error stream: delayed HLS errors cannot
+      // be mistaken for TS errors, even after the new stream starts opening.
+      try {
+        final source = fallback!();
+        _subscription = source.errors.listen((e) => _fail(e, primary: false));
+        Future.sync(() => source.open(fallbackUrl)).catchError((Object e) {
+          _fail('$e', primary: false);
+        });
+      } catch (e) {
+        _fail('$e', primary: false);
+      }
+      return;
+    }
+    _terminal = true;
+    onFailure(error);
+  }
+
+  void dispose() {
+    _active = false;
+    _subscription?.cancel();
+  }
+}
+
 /// Plays a live channel, a movie or a series episode.
 ///
 /// The shell is one full-bleed picture with a single auto-hiding control layer
@@ -36,9 +100,9 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late final Player _player;
-  late final VideoController _controller;
-  final _videoKey = GlobalKey<VideoState>();
+  late Player _player;
+  late VideoController _controller;
+  GlobalKey<VideoState> _videoKey = GlobalKey<VideoState>();
   final _keyboardFocus = FocusNode(debugLabel: 'player-keys');
   final _playFocus = FocusNode(debugLabel: 'player-play');
 
@@ -62,10 +126,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _chromeTimer;
   TapDownDetails? _pendingTap;
   int _epgGeneration = 0;
+  int _channelGeneration = 0;
+  LivePlaybackAttempt? _attempt;
+  bool _openedOnce = false;
 
   static const _chromeTimeout = Duration(seconds: 4);
 
-  StreamSubscription? _errSub;
   StreamSubscription? _playingSub;
   StreamSubscription? _bufferingSub;
 
@@ -85,20 +151,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     _current = widget.item;
 
-    _errSub = _player.stream.error.listen((e) {
-      if (!mounted) return;
-      setState(() => _error = e.isEmpty ? tr(context, 'Playback error') : e);
-    });
-    _playingSub = _player.stream.playing.listen((v) {
-      if (!mounted) return;
-      setState(() => _playing = v);
-      _restartChromeTimer();
-    });
-    _bufferingSub = _player.stream.buffering.listen((v) {
-      if (!mounted) return;
-      setState(() => _buffering = v);
-    });
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _keyboardFocus.requestFocus();
@@ -111,7 +163,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void dispose() {
     _epgTimer?.cancel();
     _chromeTimer?.cancel();
-    _errSub?.cancel();
+    ++_channelGeneration;
+    _attempt?.dispose();
     _playingSub?.cancel();
     _bufferingSub?.cancel();
     _player.dispose();
@@ -180,7 +233,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // ── playback ─────────────────────────────────────────────────────────────
 
-  String _urlFor(StreamItem item) {
+  String _urlFor(StreamItem item, {String? liveExtension}) {
     if (widget.overrideUrl != null && item.id == widget.item.id) {
       return widget.overrideUrl!;
     }
@@ -191,11 +244,35 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     // live: prefer HLS when the panel offers it, then fall back to ts
     final formats = appState.account?.allowedOutputFormats ?? const ['ts'];
-    final ext = formats.contains('m3u8') ? 'm3u8' : (formats.first);
+    final ext =
+        liveExtension ?? (formats.contains('m3u8') ? 'm3u8' : formats.first);
     return c.liveUrl(item, extension: ext);
   }
 
+  Player _replacePlayer() {
+    final oldPlayer = _player;
+    _player = Player();
+    _controller = VideoController(_player);
+    _videoKey = GlobalKey<VideoState>();
+    // Allow the old Video widget to detach before releasing its native player.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(oldPlayer.dispose());
+    });
+    return _player;
+  }
+
   Future<void> _openCurrent() async {
+    final generation = ++_channelGeneration;
+    _attempt?.dispose();
+    _playingSub?.cancel();
+    _bufferingSub?.cancel();
+    _epgTimer?.cancel();
+    if (_openedOnce) {
+      // An error emitted by the old native player cannot be attributed to the
+      // new channel. Use a new player rather than reusing its error stream.
+      _replacePlayer();
+    }
+    _openedOnce = true;
     final c = appState.client;
     if (c == null) {
       setState(() => _error = tr(context, 'Not logged in.'));
@@ -205,14 +282,69 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _error = null;
       _current = _queue[_index];
       _epg = const [];
+      _playing = false;
+      _buffering = false;
     });
     ++_epgGeneration;
-    final url = _urlFor(_current);
+    final item = _current;
+    final url = _urlFor(item);
+    final formats = appState.account?.allowedOutputFormats ?? const ['ts'];
+    final fallbackUrl =
+        item.kind == 'live' &&
+            (widget.overrideUrl == null || item.id != widget.item.id) &&
+            formats.contains('m3u8') &&
+            formats.contains('ts')
+        ? _urlFor(item, liveExtension: 'ts')
+        : null;
+    bool current() => mounted && generation == _channelGeneration;
+    PlaybackOpening openingFor(Player player) {
+      _playingSub = player.stream.playing.listen((v) {
+        if (!current()) return;
+        setState(() => _playing = v);
+        _restartChromeTimer();
+      });
+      _bufferingSub = player.stream.buffering.listen((v) {
+        if (!current()) return;
+        setState(() => _buffering = v);
+      });
+      return PlaybackOpening(
+        errors: player.stream.error,
+        open: (url) async {
+          if (!current()) return;
+          await player.open(Media(url), play: true);
+          if (current()) await player.setVolume(_volume);
+        },
+      );
+    }
+
+    _attempt = LivePlaybackAttempt(
+      primary: openingFor(_player),
+      fallback: fallbackUrl == null
+          ? null
+          : () {
+              if (!current()) {
+                throw StateError('Playback changed');
+              }
+              _playingSub?.cancel();
+              _bufferingSub?.cancel();
+              final player = _replacePlayer();
+              setState(() {
+                _playing = false;
+                _buffering = false;
+              });
+              return openingFor(player);
+            },
+      onFailure: (_) {
+        if (!current()) return;
+        // Native player errors can embed the media URL, including credentials.
+        // Keep the UI message safe; the retry button remains available.
+        setState(() => _error = tr(context, 'Playback error'));
+      },
+    );
     // Stream URLs carry username and password. Never print one in diagnostics.
-    await _player.open(Media(url), play: true);
-    if (!mounted) return;
-    await _player.setVolume(_volume);
-    if (_current.kind == 'live') {
+    await _attempt!.start(url, fallbackUrl: fallbackUrl);
+    if (!current()) return;
+    if (item.kind == 'live') {
       _loadEpg();
       _epgTimer?.cancel();
       _epgTimer = Timer.periodic(const Duration(minutes: 2), (_) => _loadEpg());

@@ -871,6 +871,7 @@ class _ContentArea extends StatelessWidget {
     final items = appState.visibleItems;
     final st = appState;
     final compact = st.density == Density.compact;
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     if (appState.busy && items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -910,6 +911,7 @@ class _ContentArea extends StatelessWidget {
                     itemBuilder: (context, i) => _StreamRow(
                       item: items[i],
                       dense: compact,
+                      focusNode: i == 0 ? gridFocus : null,
                       autofocus: i == 0,
                       onSelect: () => _open(context, items[i]),
                     ),
@@ -918,7 +920,9 @@ class _ContentArea extends StatelessWidget {
                     padding: EdgeInsets.all(compact ? 8 : 14),
                     gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: compact ? 146 : 190,
-                      childAspectRatio: compact ? 1.02 : 0.78,
+                      childAspectRatio: largeText
+                          ? (compact ? 0.70 : 0.58)
+                          : (compact ? 1.02 : 0.78),
                       mainAxisSpacing: compact ? 7 : 12,
                       crossAxisSpacing: compact ? 7 : 12,
                     ),
@@ -928,6 +932,7 @@ class _ContentArea extends StatelessWidget {
                       return _StreamCard(
                         item: item,
                         compact: compact,
+                        focusNode: i == 0 ? gridFocus : null,
                         autofocus: i == 0,
                         onSelect: () => _open(context, item),
                       );
@@ -977,16 +982,19 @@ class _StreamCard extends StatelessWidget {
     required this.onSelect,
     this.compact = false,
     this.autofocus = false,
+    this.focusNode,
   });
 
   final StreamItem item;
   final VoidCallback onSelect;
   final bool compact;
   final bool autofocus;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
     return FocusRing(
+      focusNode: focusNode,
       borderRadius: AppTheme.cardRadius,
       autofocus: autofocus,
       onSelect: onSelect,
@@ -1217,16 +1225,19 @@ class _StreamRow extends StatelessWidget {
     required this.onSelect,
     this.dense = false,
     this.autofocus = false,
+    this.focusNode,
   });
 
   final StreamItem item;
   final VoidCallback onSelect;
   final bool dense;
   final bool autofocus;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
     return FocusRing(
+      focusNode: focusNode,
       autofocus: autofocus,
       onSelect: onSelect,
       child: Container(
@@ -1780,9 +1791,18 @@ class _SidebarShell extends StatelessWidget {
                       if (account != null && !compact)
                         _AccountChip(account: account!),
                       if (appState.guest)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: _GuestChip(),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: compact
+                              ? Tooltip(
+                                  message: tr(context, 'no login — open panel'),
+                                  child: Icon(
+                                    Icons.lock_open,
+                                    color: AppTheme.accent,
+                                    size: 18,
+                                  ),
+                                )
+                              : const _GuestChip(),
                         ),
                     ],
                   ),
@@ -1909,8 +1929,9 @@ class _ShowcaseShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = appState.items;
-    // Prefer an item that has artwork: a banner with a logo beats a bare gradient.
+    final items = appState.visibleItems;
+    // The banner and shelves must describe the same filtered catalogue.
+    // Otherwise a search can leave an unrelated title playable in the hero.
     final hero = items.isEmpty
         ? null
         : items.firstWhere((i) => i.icon != null, orElse: () => items.first);
@@ -2012,54 +2033,59 @@ class _NavPills extends StatelessWidget {
       spacing: 6,
       children: [
         for (final (label, icon, tab) in items)
-          FocusRing(
-            borderRadius: 20,
-            onSelect: () => appState.setTab(tab),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => appState.setTab(tab),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 13,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: appState.tab == tab
-                      ? AppTheme.accent.withValues(alpha: 0.18)
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: appState.tab == tab
-                        ? AppTheme.accent
-                        : AppTheme.border,
+          Semantics(
+            label: label,
+            button: true,
+            selected: appState.tab == tab,
+            child: FocusRing(
+              borderRadius: 20,
+              onSelect: () => appState.setTab(tab),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => appState.setTab(tab),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 13,
+                    vertical: 8,
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 15,
+                  decoration: BoxDecoration(
+                    color: appState.tab == tab
+                        ? AppTheme.accent.withValues(alpha: 0.18)
+                        : Colors.transparent,
+                    border: Border.all(
                       color: appState.tab == tab
                           ? AppTheme.accent
-                          : AppTheme.muted,
+                          : AppTheme.border,
                     ),
-                    if (labels) ...[
-                      const SizedBox(width: 7),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: appState.tab == tab
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: appState.tab == tab
-                              ? AppTheme.accent
-                              : AppTheme.text,
-                        ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 15,
+                        color: appState.tab == tab
+                            ? AppTheme.accent
+                            : AppTheme.muted,
                       ),
+                      if (labels) ...[
+                        const SizedBox(width: 7),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: appState.tab == tab
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: appState.tab == tab
+                                ? AppTheme.accent
+                                : AppTheme.text,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -2293,7 +2319,8 @@ class _DashboardShell extends StatefulWidget {
 
 class _DashboardShellState extends State<_DashboardShell> {
   bool _entered = false;
-  final _sectionFocus = FocusNode(debugLabel: 'dashboard-section');
+  bool _awaitingResultFocus = false;
+  final _backFocus = FocusNode(debugLabel: 'dashboard-back');
   final _tileFocus = <ContentTab, FocusNode>{
     for (final tab in ContentTab.values)
       tab: FocusNode(debugLabel: 'dashboard-${tab.name}'),
@@ -2301,6 +2328,7 @@ class _DashboardShellState extends State<_DashboardShell> {
 
   void _leaveSection() {
     if (!_entered) return;
+    _awaitingResultFocus = false;
     final tab = appState.tab;
     setState(() => _entered = false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2308,9 +2336,26 @@ class _DashboardShellState extends State<_DashboardShell> {
     });
   }
 
+  void _focusLoadedResult() {
+    if (!_entered || !_awaitingResultFocus || appState.visibleItems.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_entered ||
+          !_awaitingResultFocus ||
+          widget.gridFocus.context == null) {
+        return;
+      }
+      _awaitingResultFocus = false;
+      widget.gridFocus.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
-    _sectionFocus.dispose();
+    appState.removeListener(_focusLoadedResult);
+    _backFocus.dispose();
     for (final node in _tileFocus.values) {
       node.dispose();
     }
@@ -2320,6 +2365,7 @@ class _DashboardShellState extends State<_DashboardShell> {
   @override
   void initState() {
     super.initState();
+    appState.addListener(_focusLoadedResult);
     // Fill the caches so each tile can show its own artwork, without switching
     // the visible tab away from Live TV.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2348,7 +2394,7 @@ class _DashboardShellState extends State<_DashboardShell> {
               }
             : const <ShortcutActivator, VoidCallback>{},
         child: Focus(
-          focusNode: _sectionFocus,
+          skipTraversal: true,
           child: Scaffold(
             body: SafeArea(
               child: Column(
@@ -2359,6 +2405,7 @@ class _DashboardShellState extends State<_DashboardShell> {
                       children: [
                         if (_entered)
                           IconButton(
+                            focusNode: _backFocus,
                             tooltip: tr(context, 'Back to sections'),
                             icon: const Icon(Icons.arrow_back),
                             onPressed: _leaveSection,
@@ -2406,11 +2453,17 @@ class _DashboardShellState extends State<_DashboardShell> {
                                   focusNodes: _tileFocus,
                                   onEnter: (tab) {
                                     appState.setTab(tab);
+                                    _awaitingResultFocus =
+                                        appState.visibleItems.isEmpty;
                                     setState(() => _entered = true);
+                                    // Empty sections still need a focused
+                                    // control so Back works on a TV remote.
                                     WidgetsBinding.instance
                                         .addPostFrameCallback((_) {
-                                          if (mounted) {
-                                            _sectionFocus.requestFocus();
+                                          if (mounted &&
+                                              _entered &&
+                                              _awaitingResultFocus) {
+                                            _backFocus.requestFocus();
                                           }
                                         });
                                   },
@@ -2478,6 +2531,7 @@ class _DashboardResults extends StatelessWidget {
       );
     }
     final compact = appState.density == Density.compact;
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2510,7 +2564,9 @@ class _DashboardResults extends StatelessWidget {
               padding: EdgeInsets.all(compact ? 8 : 14),
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: compact ? 146 : 190,
-                childAspectRatio: compact ? 1.02 : 0.78,
+                childAspectRatio: largeText
+                    ? (compact ? 0.70 : 0.58)
+                    : (compact ? 1.02 : 0.78),
                 mainAxisSpacing: compact ? 7 : 12,
                 crossAxisSpacing: compact ? 7 : 12,
               ),
@@ -2571,7 +2627,9 @@ class _DashboardTiles extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: narrow ? 2.2 : 1.65,
+          childAspectRatio: narrow
+              ? (MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 1.5 : 2.2)
+              : 1.65,
           children: [
             for (final (idx, (label, icon, tab, blurb)) in tiles.indexed)
               _SectionTile(
@@ -2703,6 +2761,8 @@ class _SectionTile extends StatelessWidget {
                       children: [
                         Text(
                           label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
@@ -3063,12 +3123,16 @@ class _MasterDetailShell extends StatelessWidget {
                     children: [
                       AppMark(size: 24),
                       const SizedBox(width: 9),
-                      Text(
-                        'Spectre',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.text,
+                      Expanded(
+                        child: Text(
+                          'Spectre',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.text,
+                          ),
                         ),
                       ),
                     ],
@@ -3166,16 +3230,20 @@ class _MasterTabs extends StatelessWidget {
                             : AppTheme.muted,
                       ),
                       const SizedBox(width: 9),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: appState.tab == tab
-                              ? AppTheme.accent
-                              : AppTheme.text,
-                          fontWeight: appState.tab == tab
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                      Expanded(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: appState.tab == tab
+                                ? AppTheme.accent
+                                : AppTheme.text,
+                            fontWeight: appState.tab == tab
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],

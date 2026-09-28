@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' hide Category;
@@ -121,6 +122,9 @@ class AppState extends ChangeNotifier {
   final Map<ContentTab, List<StreamItem>> _cache = {};
   final Map<ContentTab, List<Category>> _categoryCache = {};
   final Map<String, List<StreamItem>> _catCache = {};
+  int _contentEpoch = 0;
+  int _visibleRequest = 0;
+  int _sessionEpoch = 0;
 
   XtreamClient? client;
 
@@ -131,27 +135,35 @@ class AppState extends ChangeNotifier {
     if (_cache.containsKey(t) || _preloading.contains(t)) return;
     final c = client;
     if (c == null) return;
+    final epoch = _contentEpoch;
+    bool current() => _contentEpoch == epoch && identical(client, c);
     _preloading.add(t);
     notifyListeners();
     try {
       if (!_categoryCache.containsKey(t)) {
-        _categoryCache[t] = switch (t) {
+        final cats = switch (t) {
           ContentTab.live => await c.liveCategories(),
           ContentTab.movies => await c.vodCategories(),
           ContentTab.series => await c.seriesCategories(),
         };
+        if (!current()) return;
+        _categoryCache[t] = cats;
       }
-      _cache[t] = switch (t) {
+      final list = switch (t) {
         ContentTab.live => await c.liveStreams(),
         ContentTab.movies => await c.vodStreams(),
         ContentTab.series => await c.series(),
       };
+      if (!current()) return;
+      _cache[t] = list;
     } catch (_) {
-      _cache[t] = _cache[t] ?? const [];
+      // A failed preload is not an empty catalogue: a later attempt can retry.
     } finally {
-      _preloading.remove(t);
+      if (current()) {
+        _preloading.remove(t);
+        notifyListeners();
+      }
     }
-    notifyListeners();
   }
 
   /// Items of a tab with artwork — what the Dashboard tiles show as a mosaic.
@@ -250,9 +262,21 @@ class AppState extends ChangeNotifier {
     AppTheme.use(themeId);
     workingServers = _prefs!.getStringList(_kWorking) ?? const [];
     _loadLogins();
+    if (!remember) {
+      // Do not resurrect the legacy single-login secret. Explicitly saved
+      // *other* accounts are independent choices and must not be erased just
+      // because this account chose not to be remembered.
+      await _prefs!.remove(_kPass);
+      final previousCount = logins.length;
+      logins.removeWhere((l) => l.server == server && l.username == username);
+      if (logins.length != previousCount) await _persistLogins();
+    }
 
     // Migrate the single saved login of older builds into the new list.
-    if (logins.isEmpty && username.isNotEmpty && password.isNotEmpty) {
+    if (remember &&
+        logins.isEmpty &&
+        username.isNotEmpty &&
+        password.isNotEmpty) {
       logins = [
         SavedLogin(
           server: server,
@@ -268,7 +292,9 @@ class AppState extends ChangeNotifier {
 
     // Sign back in without showing the login screen: the last account, its
     // remembered panel first.
-    final auto = recentLogins.isNotEmpty
+    final auto = !remember
+        ? null
+        : recentLogins.isNotEmpty
         ? recentLogins.first
         : (server.isNotEmpty && username.isNotEmpty && password.isNotEmpty
               ? SavedLogin(
@@ -355,6 +381,7 @@ class AppState extends ChangeNotifier {
   /// if the panel refuses anonymous requests, the content lists stay empty and
   /// the error explains it.
   Future<bool> browseAsGuest(String server) async {
+    _sessionEpoch++;
     busy = true;
     error = null;
     errorHint = null;
@@ -376,6 +403,11 @@ class AppState extends ChangeNotifier {
   }
 
   void _clearContent() {
+    _contentEpoch++;
+    _visibleRequest++;
+    _preloading.clear();
+    epgCache.clear();
+    epgPending.clear();
     _cache.clear();
     _categoryCache.clear();
     _catCache.clear();
@@ -386,10 +418,13 @@ class AppState extends ChangeNotifier {
 
   /// Ends the session but keeps the remembered logins.
   Future<void> logout() async {
+    _sessionEpoch++;
     account = null;
     client = null;
     guest = false;
     _clearContent();
+    busy = false;
+    discoveryNote = null;
     error = null;
     errorHint = null;
     notifyListeners();
@@ -399,9 +434,15 @@ class AppState extends ChangeNotifier {
   Future<void> forget(SavedLogin l) async {
     logins = logins.where((x) => x.key != l.key).toList();
     if (l.server == server && l.username == username) {
+      _sessionEpoch++;
       account = null;
       client = null;
+      guest = false;
+      password = '';
       _clearContent();
+      busy = false;
+      // The legacy single-login keys must not re-create a forgotten entry.
+      await _prefs?.remove(_kPass);
     }
     await _persistLogins();
     notifyListeners();
@@ -454,12 +495,15 @@ class AppState extends ChangeNotifier {
     required String password,
     String? server,
     bool silent = false,
+    bool discoverPanels = true,
   }) async {
-    this.username = username.trim();
-    this.password = password;
-    if (server != null && server.trim().isNotEmpty) this.server = server.trim();
-
-    final candidates = candidatesFor(preferred: server);
+    final session = ++_sessionEpoch;
+    final user = username.trim();
+    final explicitServer = server?.trim();
+    final candidates =
+        !discoverPanels && explicitServer != null && explicitServer.isNotEmpty
+        ? [XtreamClient.normaliseServer(explicitServer)]
+        : candidatesFor(preferred: explicitServer);
     if (!silent) {
       busy = true;
       error = null;
@@ -481,14 +525,14 @@ class AppState extends ChangeNotifier {
         });
         notifyListeners();
       }
-      final c = XtreamClient(
-        server: host,
-        username: this.username,
-        password: this.password,
-      );
+      final c = XtreamClient(server: host, username: user, password: password);
       try {
         final info = await c.login();
-        // Winner: adopt it, remember it, and put it at the front of the list.
+        if (session != _sessionEpoch) return false;
+        // Only adopt the candidate after it authenticates. A failed panel
+        // change must not replace the credentials or eject the old session.
+        this.username = user;
+        this.password = password;
         this.server = c.effectiveServer;
         client = c;
         account = info;
@@ -499,12 +543,23 @@ class AppState extends ChangeNotifier {
         discoveryNote = null;
         busy = false;
         await _rememberWorking(c.effectiveServer);
-        await _upsertLogin(c.effectiveServer, this.username, this.password);
+        if (session != _sessionEpoch) return false;
+        if (remember) {
+          await _upsertLogin(c.effectiveServer, this.username, this.password);
+        } else {
+          logins.removeWhere(
+            (l) => l.server == c.effectiveServer && l.username == this.username,
+          );
+          await _persistLogins();
+        }
+        if (session != _sessionEpoch) return false;
         await _persist();
+        if (session != _sessionEpoch) return false;
         notifyListeners();
         await loadContent(tab);
-        return true;
+        return session == _sessionEpoch;
       } on XtreamException catch (e) {
+        if (session != _sessionEpoch) return false;
         lastError = e;
         // auth=0 is ambiguous — a panel says that both for a wrong password and
         // for an account it does not know — so keep walking the list rather
@@ -514,12 +569,14 @@ class AppState extends ChangeNotifier {
           continue;
         }
       } catch (e) {
+        if (session != _sessionEpoch) return false;
         lastError = XtreamException(XtreamErrorKind.unreachable, '$e');
       }
     }
 
-    account = null;
-    client = null;
+    if (session != _sessionEpoch) return false;
+    // Keep an already working account and its catalogue intact on a failed
+    // switch; only the attempted operation reports an error.
     busy = false;
     discoveryNote = null;
     error = lastError?.message ?? trCurrent('No panel answered.');
@@ -574,14 +631,24 @@ class AppState extends ChangeNotifier {
   /// Re-login on another panel with the same account — the post-login panel
   /// switch. Credentials come from the active login, so nothing is retyped.
   Future<bool> switchPanel(String server) async {
-    final user = account?.username ?? username;
+    if (account == null) return false;
+    final user = account!.username;
     final pass = activeLogin?.password ?? password;
-    return signIn(username: user, password: pass, server: server);
+    return signIn(
+      username: user,
+      password: pass,
+      server: server,
+      discoverPanels: false,
+    );
   }
 
-  /// Continue an account the app has kept.
-  Future<bool> resumeLogin(SavedLogin l) =>
-      signIn(username: l.username, password: l.password, server: l.server);
+  /// Continue an account the app has kept on its saved panel.
+  Future<bool> resumeLogin(SavedLogin l) => signIn(
+    username: l.username,
+    password: l.password,
+    server: l.server,
+    discoverPanels: false,
+  );
 
   /// Loads now/next for one channel, once. Live items only — VOD has no EPG,
   /// and asking a panel for it is a wasted round trip per row.
@@ -590,15 +657,20 @@ class AppState extends ChangeNotifier {
     if (epgCache.containsKey(item.id) || epgPending.contains(item.id)) return;
     final c = client;
     if (c == null) return;
+    final epoch = _contentEpoch;
+    bool current() => _contentEpoch == epoch && identical(client, c);
     epgPending.add(item.id);
     try {
-      epgCache[item.id] = await c.shortEpg(item.id, limit: 2);
+      final entries = await c.shortEpg(item.id, limit: 2);
+      if (current()) epgCache[item.id] = entries;
     } catch (_) {
-      epgCache[item.id] = const [];
+      if (current()) epgCache[item.id] = const [];
     } finally {
-      epgPending.remove(item.id);
+      if (current()) {
+        epgPending.remove(item.id);
+        notifyListeners();
+      }
     }
-    notifyListeners();
   }
 
   void setCredentials({
@@ -610,11 +682,35 @@ class AppState extends ChangeNotifier {
     if (server != null) this.server = server;
     if (username != null) this.username = username;
     if (password != null) this.password = password;
-    if (remember != null) this.remember = remember;
+    if (remember != null) {
+      this.remember = remember;
+      if (!remember) {
+        logins.removeWhere(
+          (l) => l.server == this.server && l.username == this.username,
+        );
+      }
+      final p = _prefs;
+      if (p != null) {
+        unawaited(_persistRememberChoice(p, remember));
+      }
+    }
     notifyListeners();
   }
 
+  Future<void> _persistRememberChoice(SharedPreferences p, bool value) async {
+    await p.setBool(_kRemember, value);
+    if (!value) {
+      await p.remove(_kPass);
+      await _persistLogins();
+    }
+  }
+
   void setTab(ContentTab t) {
+    // Selecting the active tab also resets its category. Present the matching
+    // full-tab cache immediately instead of showing the old category under an
+    // "All" heading until the asynchronous refresh completes.
+    items = _cache[t] ?? const [];
+    categories = _categoryCache[t] ?? const [];
     tab = t;
     selectedCategoryId = null;
     search = '';
@@ -629,7 +725,9 @@ class AppState extends ChangeNotifier {
 
   void selectCategory(String? id) {
     selectedCategoryId = id;
+    _visibleRequest++;
     items = id == null ? (_cache[tab] ?? const []) : const [];
+    if (id == null) busy = false;
     notifyListeners();
     if (id != null) loadContent(tab, categoryId: id);
   }
@@ -642,10 +740,22 @@ class AppState extends ChangeNotifier {
     final c = client;
     if (c == null) return;
     tab = t;
+    selectedCategoryId = categoryId;
     if (refresh) {
+      _contentEpoch++;
+      _preloading.clear();
       _cache.remove(t);
       _categoryCache.remove(t);
+      _catCache.removeWhere((key, _) => key.startsWith('$t:'));
     }
+    final epoch = _contentEpoch;
+    final request = ++_visibleRequest;
+    bool current() =>
+        epoch == _contentEpoch &&
+        request == _visibleRequest &&
+        identical(client, c) &&
+        tab == t &&
+        selectedCategoryId == categoryId;
     busy = true;
     error = null;
     errorHint = null;
@@ -658,6 +768,7 @@ class AppState extends ChangeNotifier {
           ContentTab.movies => await c.vodCategories(),
           ContentTab.series => await c.seriesCategories(),
         };
+        if (!current()) return;
         _categoryCache[t] = cats;
         categories = cats;
       }
@@ -668,6 +779,7 @@ class AppState extends ChangeNotifier {
           ContentTab.movies => await c.vodStreams(),
           ContentTab.series => await c.series(),
         };
+        if (!current()) return;
         _cache[t] = all;
         items = all;
       } else if (categoryId != null) {
@@ -681,6 +793,7 @@ class AppState extends ChangeNotifier {
             ContentTab.movies => await c.vodStreams(categoryId: categoryId),
             ContentTab.series => await c.series(categoryId: categoryId),
           };
+          if (!current()) return;
           _catCache[key] = list;
           items = list;
         }
@@ -688,11 +801,14 @@ class AppState extends ChangeNotifier {
         items = cached ?? const [];
       }
     } on XtreamException catch (e) {
+      if (!current()) return;
       error = e.message;
       errorHint = e.hint;
     } catch (e) {
+      if (!current()) return;
       error = '$e';
     }
+    if (!current()) return;
     busy = false;
     notifyListeners();
   }

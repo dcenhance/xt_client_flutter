@@ -129,6 +129,79 @@ void main() {
     await server.close(force: true);
   });
 
+  test(
+    'a panel redirect never forwards credentials to another origin',
+    () async {
+      var forwarded = 0;
+      final destination = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      destination.listen((request) async {
+        forwarded++;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write('{"user_info":{"auth":1}}');
+        await request.response.close();
+      });
+      final source = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      source.listen((request) async {
+        request.response.statusCode = HttpStatus.found;
+        request.response.headers.set(
+          HttpHeaders.locationHeader,
+          'http://127.0.0.1:${destination.port}/player_api.php',
+        );
+        await request.response.close();
+      });
+      try {
+        final client = XtreamClient(
+          server: 'http://127.0.0.1:${source.port}',
+          username: 'u',
+          password: 'p',
+        );
+        await expectLater(
+          client.login(),
+          throwsA(
+            isA<XtreamException>()
+                .having((e) => e.kind, 'kind', XtreamErrorKind.http)
+                .having((e) => e.statusCode, 'status', HttpStatus.found),
+          ),
+        );
+        expect(forwarded, 0);
+      } finally {
+        await source.close(force: true);
+        await destination.close(force: true);
+      }
+    },
+  );
+
+  for (final status in [401, 403, 500]) {
+    test('JSON HTTP $status is classified as HTTP, not account data', () async {
+      final body = jsonEncode({
+        'user_info': {'auth': 1, 'status': 'Active'},
+        'error': 'Access denied',
+      });
+      final server = await startPanel(body: body, status: status);
+      try {
+        final client = XtreamClient(
+          server: 'http://127.0.0.1:${server.port}',
+          username: 'x',
+          password: 'y',
+        );
+        await expectLater(
+          client.login(),
+          throwsA(
+            isA<XtreamException>()
+                .having((e) => e.kind, 'kind', XtreamErrorKind.http)
+                .having((e) => e.statusCode, 'statusCode', status)
+                .having((e) => e.body, 'body', body),
+          ),
+        );
+      } finally {
+        await server.close(force: true);
+      }
+    });
+  }
+
   test('closed port is reported as unreachable', () async {
     final probe = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final port = probe.port;
@@ -188,29 +261,96 @@ void main() {
     },
   );
 
-  test('https to a plain-HTTP panel falls back to http automatically', () async {
-    // The panel below speaks plain HTTP on this port; asking for https:// first
-    // is exactly what the phone screenshot did.
-    final server = await startPanel(
-      body: jsonEncode({
-        'user_info': {'auth': 1, 'username': 'u', 'exp_date': '1790000000'},
-        'server_info': {'url': '127.0.0.1'},
-      }),
-    );
+  test('https to plain HTTP never sends credentials over HTTP', () async {
+    var httpRequests = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) async {
+      httpRequests++;
+      request.response.write(
+        jsonEncode({
+          'user_info': {'auth': 1, 'username': 'u', 'exp_date': '1790000000'},
+          'server_info': {'url': '127.0.0.1'},
+        }),
+      );
+      await request.response.close();
+    });
     final client = XtreamClient(
       server: 'https://127.0.0.1:${server.port}',
       username: 'u',
       password: 'p',
       timeout: const Duration(seconds: 3),
     );
-    final info = await client.login();
-    expect(info.authenticated, isTrue);
-    expect(client.effectiveServer, 'http://127.0.0.1:${server.port}');
-    expect(
-      client.liveUrl(StreamItem(id: '5', name: 'c', kind: 'live')),
-      'http://127.0.0.1:${server.port}/live/u/p/5.ts',
+    await expectLater(
+      client.login(),
+      throwsA(
+        isA<XtreamException>().having(
+          (e) => e.kind,
+          'kind',
+          XtreamErrorKind.tlsMismatch,
+        ),
+      ),
     );
+    expect(httpRequests, 0);
+    expect(client.effectiveServer, 'https://127.0.0.1:${server.port}');
     await server.close(force: true);
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  test('untrusted TLS certificate does not retry a login over HTTP', () async {
+    // Generates an untrusted certificate for the local panel. Requires openssl.
+    final directory = await Directory.systemTemp.createTemp('spectre-tls-');
+    HttpServer? server;
+    try {
+      final cert = '${directory.path}/cert.pem';
+      final key = '${directory.path}/key.pem';
+      final result = await Process.run('openssl', [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        key,
+        '-out',
+        cert,
+        '-days',
+        '1',
+        '-subj',
+        '/CN=localhost',
+      ]);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final context = SecurityContext()
+        ..useCertificateChain(cert)
+        ..usePrivateKey(key);
+      server = await HttpServer.bindSecure(
+        InternetAddress.loopbackIPv4,
+        0,
+        context,
+      );
+      server.listen((request) async {
+        request.response.write('{}');
+        await request.response.close();
+      });
+      final client = XtreamClient(
+        server: 'https://127.0.0.1:${server.port}',
+        username: 'private-user',
+        password: 'private-password',
+        timeout: const Duration(seconds: 3),
+      );
+      await expectLater(
+        client.login(),
+        throwsA(
+          isA<XtreamException>().having(
+            (e) => e.kind,
+            'kind',
+            XtreamErrorKind.tlsMismatch,
+          ),
+        ),
+      );
+      expect(client.effectiveServer, 'https://127.0.0.1:${server.port}');
+    } finally {
+      await server?.close(force: true);
+      await directory.delete(recursive: true);
+    }
   }, timeout: const Timeout(Duration(seconds: 60)));
 
   test('a placeholder DNS address is reported before anything else', () async {
@@ -269,4 +409,109 @@ void main() {
       'http://panel:8080/get.php?username=user&password=pass&type=m3u_plus&output=m3u8',
     );
   });
+
+  test('stream and export URLs encode credentials as single components', () {
+    const user = 'a/b ?#%&+ \u00103';
+    const password = 'p/@?#%&+= \u00130';
+    final client = XtreamClient(
+      server: 'https://panel.example:8443',
+      username: user,
+      password: password,
+    );
+    final live = StreamItem(id: 'id/42', name: 'Channel', kind: 'live');
+    final vod = StreamItem(
+      id: 'id/99',
+      name: 'Movie',
+      kind: 'movie',
+      containerExtension: 'm?k/v',
+    );
+
+    for (final url in [
+      client.liveUrl(live, extension: 'm3/u8'),
+      client.vodUrl(vod),
+      client.seriesEpisodeUrl('id/7', 'm?4'),
+    ]) {
+      expect(url, contains('a%2Fb'));
+      expect(url, contains('p%2F%40'));
+      final uri = Uri.parse(url);
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'panel.example');
+      expect(uri.pathSegments[1], user);
+      expect(uri.pathSegments[2], password);
+      expect(uri.pathSegments.length, 4);
+      expect(uri.query, isEmpty);
+      expect(uri.fragment, isEmpty);
+    }
+    expect(
+      Uri.parse(client.liveUrl(live, extension: 'm3/u8')).pathSegments.last,
+      'id/42.m3/u8',
+    );
+    expect(Uri.parse(client.vodUrl(vod)).pathSegments.last, 'id/99.m?k/v');
+    expect(
+      Uri.parse(client.seriesEpisodeUrl('id/7', 'm?4')).pathSegments.last,
+      'id/7.m?4',
+    );
+
+    final playlist = Uri.parse(client.playlistUrl(hls: true));
+    expect(playlist.pathSegments, ['get.php']);
+    expect(playlist.queryParameters, {
+      'username': user,
+      'password': password,
+      'type': 'm3u_plus',
+      'output': 'm3u8',
+    });
+    final epg = Uri.parse(client.epgUrl());
+    expect(epg.pathSegments, ['xmltv.php']);
+    expect(epg.queryParameters, {'username': user, 'password': password});
+  });
+
+  test(
+    'local panel receives encoded stream and export credentials intact',
+    () async {
+      const user = 'user/one# two';
+      const password = 'p&ss?%/word';
+      final received = <Uri>[];
+      final panel = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      panel.listen((request) async {
+        received.add(request.uri);
+        request.response.write('ok');
+        await request.response.close();
+      });
+      final transport = HttpClient();
+      try {
+        final client = XtreamClient(
+          server: 'http://127.0.0.1:${panel.port}',
+          username: user,
+          password: password,
+        );
+        final urls = [
+          client.liveUrl(StreamItem(id: 'id/5', name: 'c', kind: 'live')),
+          client.vodUrl(StreamItem(id: 'id/7', name: 'm', kind: 'movie')),
+          client.seriesEpisodeUrl('id/8', 'mp4'),
+          client.playlistUrl(),
+          client.epgUrl(),
+        ];
+        for (final url in urls) {
+          final response = await (await transport.getUrl(Uri.parse(url)))
+              .close();
+          await response.drain<void>();
+          expect(response.statusCode, 200);
+        }
+        expect(received.length, urls.length);
+        for (final uri in received.take(3)) {
+          expect(uri.pathSegments[1], user);
+          expect(uri.pathSegments[2], password);
+          expect(uri.pathSegments.length, 4);
+          expect(uri.query, isEmpty);
+        }
+        for (final uri in received.skip(3)) {
+          expect(uri.queryParameters['username'], user);
+          expect(uri.queryParameters['password'], password);
+        }
+      } finally {
+        transport.close(force: true);
+        await panel.close(force: true);
+      }
+    },
+  );
 }
